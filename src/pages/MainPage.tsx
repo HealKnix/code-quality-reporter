@@ -5,7 +5,11 @@ import ContributorsList from '../components/Contributors/ContributorsList';
 import DateRangePicker from '../components/CodeReview/DateRangePicker';
 import CodeReviewResults from '../components/CodeReview/CodeReviewResults';
 import { Contributor, CodeReview } from '../types';
-import { useRepositoryInfo, useContributors, useCodeReviews } from '../hooks/useGitHubQueries';
+import {
+  useRepositoryInfo,
+  useContributors,
+  useCodeReviews,
+} from '../hooks/useGitHubQueries';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
@@ -14,15 +18,17 @@ import { DateRange } from 'react-day-picker';
 
 const MainPage: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
-  const [selectedContributors, setSelectedContributors] = useState<Contributor[]>([]);
+  const [selectedContributors, setSelectedContributors] = useState<
+    Contributor[]
+  >([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
 
   // React Query hooks
-  const { 
+  const {
     data: repoInfo,
     isLoading: isLoadingRepo,
-    error: repoError
+    error: repoError,
   } = useRepositoryInfo(repoUrl);
 
   // Only fetch contributors when we have repo info
@@ -30,10 +36,8 @@ const MainPage: React.FC = () => {
   const repo = repoInfo?.repo || '';
   const hasRepoInfo = !!owner && !!repo;
 
-  const {
-    data: contributors = [],
-    isLoading: isLoadingContributors
-  } = useContributors(owner, repo);
+  const { data: contributors = [], isLoading: isLoadingContributors } =
+    useContributors(owner, repo);
 
   const codeReviewMutation = useCodeReviews({
     onSuccess: (data) => {
@@ -41,7 +45,7 @@ const MainPage: React.FC = () => {
     },
     onError: (error: Error) => {
       console.error('Error performing code reviews:', error);
-    }
+    },
   });
 
   const handleRepositorySubmit = (inputRepoUrl: string) => {
@@ -53,40 +57,37 @@ const MainPage: React.FC = () => {
     setSelectedContributors(contributors);
   };
 
-  const handleDateRangeChange = (range: DateRange | undefined) => {
-    setDateRange(range);
-    if (range?.from && range?.to) {
-      // Convert to ISO format for API
-      const startDate = range.from.toISOString().split('T')[0];
-      const endDate = range.to.toISOString().split('T')[0];
-    }
-  };
-
   const handleGenerateReview = async () => {
-    if (!repoInfo || selectedContributors.length === 0 || !dateRange?.from || !dateRange?.to) {
+    if (
+      !repoInfo ||
+      selectedContributors.length === 0 ||
+      !dateRange?.from ||
+      !dateRange?.to
+    ) {
       return;
     }
 
-    const contributorEmails = selectedContributors.map(c => c.email);
+    const contributorIds = selectedContributors.map((c) => c.id);
     const startDate = dateRange.from.toISOString().split('T')[0];
     const endDate = dateRange.to.toISOString().split('T')[0];
-    
+
     codeReviewMutation.mutate({
       owner: repoInfo.owner,
       repo: repoInfo.repo,
-      contributors: contributorEmails,
+      contributors: contributorIds,
       startDate,
-      endDate
+      endDate,
     });
   };
 
-  const isLoading = isLoadingRepo || isLoadingContributors || codeReviewMutation.isPending;
+  const isLoading =
+    isLoadingRepo || isLoadingContributors || codeReviewMutation.isPending;
   const error = repoError || codeReviewMutation.error;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Header />
-      
+
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertTriangle className="h-4 w-4" />
@@ -98,16 +99,18 @@ const MainPage: React.FC = () => {
                 <p>Достигнут лимит запросов к GitHub API. Вы можете:</p>
                 <ul className="list-disc list-inside mt-1">
                   <li>Подождать некоторое время</li>
-                  <li>Добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)</li>
+                  <li>
+                    Добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)
+                  </li>
                 </ul>
               </div>
             )}
           </AlertDescription>
         </Alert>
       )}
-      
+
       <RepositoryInput onSubmit={handleRepositorySubmit} />
-      
+
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -117,26 +120,31 @@ const MainPage: React.FC = () => {
         <>
           {hasRepoInfo && contributors.length > 0 && (
             <>
-              <ContributorsList 
-                contributors={contributors} 
-                onContributorSelect={handleContributorSelect} 
+              <ContributorsList
+                contributors={contributors}
+                onContributorSelect={handleContributorSelect}
               />
-              
-              <DateRangePicker 
+
+              <DateRangePicker
                 onDateRangeChange={(startDate, endDate) => {
                   if (startDate && endDate) {
                     setDateRange({
                       from: new Date(startDate),
-                      to: new Date(endDate)
+                      to: new Date(endDate),
                     });
                   }
-                }} 
+                }}
               />
-              
+
               <div className="mb-6">
                 <Button
                   onClick={handleGenerateReview}
-                  disabled={selectedContributors.length === 0 || !dateRange?.from || !dateRange?.to || codeReviewMutation.isPending}
+                  disabled={
+                    selectedContributors.length === 0 ||
+                    !dateRange?.from ||
+                    !dateRange?.to ||
+                    codeReviewMutation.isPending
+                  }
                   className="w-full md:w-auto"
                 >
                   {codeReviewMutation.isPending ? (
@@ -144,12 +152,14 @@ const MainPage: React.FC = () => {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Анализирую...
                     </>
-                  ) : 'Заход-ревьюить'}
+                  ) : (
+                    'Закод-ревьюить'
+                  )}
                 </Button>
               </div>
             </>
           )}
-          
+
           {codeReviews.length > 0 && (
             <CodeReviewResults reviews={codeReviews} />
           )}

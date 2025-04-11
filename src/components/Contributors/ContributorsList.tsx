@@ -4,7 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 interface ContributorsListProps {
@@ -12,31 +19,38 @@ interface ContributorsListProps {
   onContributorSelect: (selectedContributors: Contributor[]) => void;
 }
 
-const ContributorsList: React.FC<ContributorsListProps> = ({ 
-  contributors, 
-  onContributorSelect 
+const ContributorsList: React.FC<ContributorsListProps> = ({
+  contributors,
+  onContributorSelect,
 }) => {
-  const [selectedContributors, setSelectedContributors] = useState<Contributor[]>([]);
+  const [selectedContributors, setSelectedContributors] = useState<
+    Contributor[]
+  >([]);
   const [emailFilter, setEmailFilter] = useState('');
 
   const handleContributorToggle = (contributor: Contributor) => {
-    const isSelected = selectedContributors.some(c => c.id === contributor.id);
+    const isSelected = selectedContributors.some(
+      (c) => c.id === contributor.id,
+    );
     let updatedSelection;
-    
+
     if (isSelected) {
-      updatedSelection = selectedContributors.filter(c => c.id !== contributor.id);
+      updatedSelection = selectedContributors.filter(
+        (c) => c.id !== contributor.id,
+      );
     } else {
       updatedSelection = [...selectedContributors, contributor];
     }
-    
+
     setSelectedContributors(updatedSelection);
     onContributorSelect(updatedSelection);
   };
 
-  const filteredContributors = emailFilter.trim() 
-    ? contributors.filter(c => 
-        c.email.toLowerCase().includes(emailFilter.toLowerCase()) || 
-        c.name.toLowerCase().includes(emailFilter.toLowerCase())
+  const filteredContributors = emailFilter.trim()
+    ? contributors.filter(
+        (c) =>
+          c.email.toLowerCase().includes(emailFilter.toLowerCase()) ||
+          c.name.toLowerCase().includes(emailFilter.toLowerCase()),
       )
     : contributors;
 
@@ -56,7 +70,7 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
               placeholder="Введите почту..."
             />
           </div>
-          
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -70,31 +84,53 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
               </TableHeader>
               <TableBody>
                 {filteredContributors.length > 0 ? (
-                  filteredContributors.map(contributor => (
-                    <TableRow 
-                      key={contributor.id} 
-                      className={selectedContributors.some(c => c.id === contributor.id) ? 'bg-muted/50' : ''}
+                  filteredContributors.map((contributor) => (
+                    <TableRow
+                      key={contributor.id}
+                      className={
+                        selectedContributors.some(
+                          (c) => c.id === contributor.id,
+                        )
+                          ? 'bg-muted/50'
+                          : ''
+                      }
                     >
                       <TableCell className="text-center">
                         <Checkbox
-                          checked={selectedContributors.some(c => c.id === contributor.id)}
-                          onCheckedChange={() => handleContributorToggle(contributor)}
+                          checked={selectedContributors.some(
+                            (c) => c.id === contributor.id,
+                          )}
+                          onCheckedChange={() =>
+                            handleContributorToggle(contributor)
+                          }
                         />
                       </TableCell>
                       <TableCell>
                         <Avatar>
-                          <AvatarImage src={contributor.avatar} alt={contributor.name} />
-                          <AvatarFallback>{contributor.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                          <AvatarImage
+                            src={contributor.avatar}
+                            alt={contributor.name}
+                          />
+                          <AvatarFallback>
+                            {contributor.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
                       </TableCell>
                       <TableCell>{contributor.name}</TableCell>
-                      <TableCell className="text-primary">{contributor.email}</TableCell>
-                      <TableCell className="text-right">{contributor.mergeCount}</TableCell>
+                      <TableCell className="text-primary">
+                        {contributor.email}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {contributor.mergeCount}
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-4 text-muted-foreground"
+                    >
                       Не найдено контрибьютеров по заданным критериям
                     </TableCell>
                   </TableRow>

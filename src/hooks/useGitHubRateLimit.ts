@@ -7,26 +7,33 @@ import { useState, useEffect } from 'react';
  */
 export function useGitHubRateLimit() {
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
-  
+
   useEffect(() => {
     // Listen for custom events that could be dispatched when rate limit is hit
     const handleRateLimitExceeded = () => {
       setIsRateLimited(true);
     };
 
-    window.addEventListener('github-rate-limit-exceeded', handleRateLimitExceeded);
-    
+    window.addEventListener(
+      'github-rate-limit-exceeded',
+      handleRateLimitExceeded,
+    );
+
     // Check if there was a rate limit error stored
-    const hasRateLimitError = sessionStorage.getItem('github-rate-limit-error') === 'true';
+    const hasRateLimitError =
+      sessionStorage.getItem('github-rate-limit-error') === 'true';
     if (hasRateLimitError) {
       setIsRateLimited(true);
     }
-    
+
     return () => {
-      window.removeEventListener('github-rate-limit-exceeded', handleRateLimitExceeded);
+      window.removeEventListener(
+        'github-rate-limit-exceeded',
+        handleRateLimitExceeded,
+      );
     };
   }, []);
-  
+
   return { isRateLimited, setIsRateLimited };
 }
 

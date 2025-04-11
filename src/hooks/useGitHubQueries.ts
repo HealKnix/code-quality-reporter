@@ -1,11 +1,16 @@
-import { useQuery, useMutation, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
-import { 
-  getRepository, 
-  getContributors, 
-  performCodeReviews, 
-  parseRepositoryUrl 
+import {
+  useMutation,
+  UseMutationOptions,
+  useQuery,
+  UseQueryOptions,
+} from '@tanstack/react-query';
+import {
+  getContributors,
+  getRepository,
+  parseRepositoryUrl,
+  performCodeReviews,
 } from '../services/github.service';
-import { Contributor, CodeReview } from '../types';
+import { CodeReview, Contributor } from '../types';
 
 // Define return type for repository info
 interface RepositoryInfoReturn {
@@ -18,28 +23,41 @@ interface RepositoryInfoReturn {
  * Hook for fetching repository information
  */
 export const useRepositoryInfo = (
-  repoUrl: string, 
-  options?: Omit<UseQueryOptions<RepositoryInfoReturn, Error, RepositoryInfoReturn, [string, string]>, 'queryKey' | 'queryFn' | 'enabled'>
+  repoUrl: string,
+  options?: Omit<
+    UseQueryOptions<
+      RepositoryInfoReturn,
+      Error,
+      RepositoryInfoReturn,
+      [string, string]
+    >,
+    'queryKey' | 'queryFn' | 'enabled'
+  >,
 ) => {
-  return useQuery<RepositoryInfoReturn, Error, RepositoryInfoReturn, [string, string]>({
+  return useQuery<
+    RepositoryInfoReturn,
+    Error,
+    RepositoryInfoReturn,
+    [string, string]
+  >({
     queryKey: ['repository', repoUrl],
     queryFn: async () => {
       const repoInfo = parseRepositoryUrl(repoUrl);
       if (!repoInfo) {
         throw new Error('Неверный формат URL репозитория');
       }
-      
+
       const { owner, repo } = repoInfo;
       const data = await getRepository(owner, repo);
-      
+
       return {
         repoData: data,
         owner,
-        repo
+        repo,
       };
     },
     enabled: !!repoUrl,
-    ...options
+    ...options,
   });
 };
 
@@ -47,15 +65,28 @@ export const useRepositoryInfo = (
  * Hook for fetching contributors from a repository
  */
 export const useContributors = (
-  owner: string, 
-  repo: string, 
-  options?: Omit<UseQueryOptions<Contributor[], Error, Contributor[], [string, string, string]>, 'queryKey' | 'queryFn' | 'enabled'>
+  owner: string,
+  repo: string,
+  options?: Omit<
+    UseQueryOptions<
+      Contributor[],
+      Error,
+      Contributor[],
+      [string, string, string]
+    >,
+    'queryKey' | 'queryFn' | 'enabled'
+  >,
 ) => {
-  return useQuery<Contributor[], Error, Contributor[], [string, string, string]>({
+  return useQuery<
+    Contributor[],
+    Error,
+    Contributor[],
+    [string, string, string]
+  >({
     queryKey: ['contributors', owner, repo],
     queryFn: () => getContributors(owner, repo),
     enabled: !!owner && !!repo,
-    ...options
+    ...options,
   });
 };
 
@@ -63,7 +94,7 @@ export const useContributors = (
 interface CodeReviewParams {
   owner: string;
   repo: string;
-  contributors: string[];
+  contributors: number[];
   startDate: string;
   endDate: string;
 }
@@ -72,7 +103,10 @@ interface CodeReviewParams {
  * Hook for performing code reviews
  */
 export const useCodeReviews = (
-  options?: Omit<UseMutationOptions<CodeReview[], Error, CodeReviewParams>, 'mutationFn'>
+  options?: Omit<
+    UseMutationOptions<CodeReview[], Error, CodeReviewParams>,
+    'mutationFn'
+  >,
 ) => {
   return useMutation<CodeReview[], Error, CodeReviewParams>({
     mutationFn: ({
@@ -80,8 +114,9 @@ export const useCodeReviews = (
       repo,
       contributors,
       startDate,
-      endDate
-    }: CodeReviewParams) => performCodeReviews(owner, repo, contributors, startDate, endDate),
-    ...options
+      endDate,
+    }: CodeReviewParams) =>
+      performCodeReviews(owner, repo, contributors, startDate, endDate),
+    ...options,
   });
 };

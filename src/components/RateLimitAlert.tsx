@@ -5,7 +5,9 @@ interface RateLimitAlertProps {
   isVisible: boolean;
 }
 
-export const RateLimitAlert: React.FC<RateLimitAlertProps> = ({ isVisible }) => {
+export const RateLimitAlert: React.FC<RateLimitAlertProps> = ({
+  isVisible,
+}) => {
   const [token, setToken] = useState('');
   const [showTokenInput, setShowTokenInput] = useState(false);
 
@@ -28,11 +30,12 @@ export const RateLimitAlert: React.FC<RateLimitAlertProps> = ({ isVisible }) => 
         </div>
         <div className="ml-3">
           <p className="text-sm text-red-700">
-            <strong>GitHub API rate limit exceeded.</strong> You've reached the limit for unauthenticated requests.
+            <strong>GitHub API rate limit exceeded.</strong> You've reached the
+            limit for unauthenticated requests.
           </p>
           <div className="mt-2">
             {!showTokenInput ? (
-              <button 
+              <button
                 className="text-sm font-medium text-red-700 hover:text-red-600"
                 onClick={() => setShowTokenInput(true)}
               >
@@ -41,14 +44,23 @@ export const RateLimitAlert: React.FC<RateLimitAlertProps> = ({ isVisible }) => 
             ) : (
               <div className="mt-2 space-y-2">
                 <p className="text-xs text-gray-600">
-                  Create a token at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="underline">github.com/settings/tokens</a> (no specific permissions needed for public repos)
+                  Create a token at{' '}
+                  <a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    github.com/settings/tokens
+                  </a>{' '}
+                  (no specific permissions needed for public repos)
                 </p>
                 <div className="flex space-x-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    placeholder="Paste your GitHub token" 
+                    placeholder="Paste your GitHub token"
                     className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
                   />
                   <button

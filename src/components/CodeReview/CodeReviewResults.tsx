@@ -1,8 +1,21 @@
 import React from 'react';
 import { CodeReview } from '../../types';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '../ui/card';
 import { Button } from '../ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 
@@ -44,32 +57,42 @@ const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({ reviews }) => {
           </TableHeader>
           <TableBody>
             {reviews.length > 0 ? (
-              reviews.map(review => (
+              reviews.map((review) => (
                 <TableRow key={review.id}>
                   <TableCell>
                     <Avatar>
                       <AvatarImage src={review.avatar} alt={review.name} />
-                      <AvatarFallback>{review.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback>
+                        {review.name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                   </TableCell>
                   <TableCell>{review.name}</TableCell>
                   <TableCell className="text-primary">{review.email}</TableCell>
-                  <TableCell className="text-center">{review.mergeCount}</TableCell>
                   <TableCell className="text-center">
-                    <Badge 
-                      variant={getStatusVariant(review.status) as any} 
+                    {review.mergeCount}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={getStatusVariant(review.status) as any}
                       className="font-medium"
                     >
                       {review.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-medium">{review.rating.toFixed(1)}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {review.rating.toFixed(1)}
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                  Нет данных для отображения. Выберите контрибьютеров и период для анализа.
+                <TableCell
+                  colSpan={6}
+                  className="text-center py-4 text-muted-foreground"
+                >
+                  Нет данных для отображения. Выберите контрибьютеров и период
+                  для анализа.
                 </TableCell>
               </TableRow>
             )}

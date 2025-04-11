@@ -9,12 +9,14 @@ interface DateRangePickerProps {
   onDateRangeChange: (startDate: string, endDate: string) => void;
 }
 
-const DateRangePicker: React.FC<DateRangePickerProps> = ({ onDateRangeChange }) => {
+const DateRangePicker: React.FC<DateRangePickerProps> = ({
+  onDateRangeChange,
+}) => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
-    
+
     if (range?.from && range?.to) {
       // Format dates to API format (YYYY-MM-DD)
       const startDate = format(range.from, 'yyyy-MM-dd');
@@ -32,7 +34,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ onDateRangeChange }) 
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label>Выберите период мерджей</Label>
-            <ShadcnDateRangePicker 
+            <ShadcnDateRangePicker
               dateRange={dateRange}
               setDateRange={handleDateRangeChange}
             />

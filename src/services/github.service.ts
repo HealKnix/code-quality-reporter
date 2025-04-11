@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Contributor, CodeReview } from '../types';
+import { CodeReview, Contributor } from '../types';
 
 // GitHub API base URL
 const API_URL = 'https://api.github.com';
@@ -11,26 +11,34 @@ const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN;
 const githubClient = axios.create({
   baseURL: API_URL,
   headers: {
-    'Accept': 'application/vnd.github.v3+json',
-    ...(GITHUB_TOKEN ? { 'Authorization': `token ${GITHUB_TOKEN}` } : {})
-  }
+    Accept: 'application/vnd.github.v3+json',
+    ...(GITHUB_TOKEN ? { Authorization: `token ${GITHUB_TOKEN}` } : {}),
+  },
 });
 
 // Add response interceptor to handle GitHub API rate limit errors
 githubClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response && error.response.status === 403 && 
-        error.response.headers['x-ratelimit-remaining'] === '0') {
-      const resetTime = new Date(parseInt(error.response.headers['x-ratelimit-reset']) * 1000);
+  (response) => response,
+  (error) => {
+    if (
+      error.response &&
+      error.response.status === 403 &&
+      error.response.headers['x-ratelimit-remaining'] === '0'
+    ) {
+      const resetTime = new Date(
+        parseInt(error.response.headers['x-ratelimit-reset']) * 1000,
+      );
       const now = new Date();
-      const minutesUntilReset = Math.ceil((resetTime.getTime() - now.getTime()) / (1000 * 60));
-      
-      error.message = `GitHub API rate limit exceeded. Reset in ${minutesUntilReset} minutes. ` +
-                      `Consider adding a GitHub token for higher limits.`;
+      const minutesUntilReset = Math.ceil(
+        (resetTime.getTime() - now.getTime()) / (1000 * 60),
+      );
+
+      error.message =
+        `GitHub API rate limit exceeded. Reset in ${minutesUntilReset} minutes. ` +
+        `Consider adding a GitHub token for higher limits.`;
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 /**
@@ -48,24 +56,29 @@ export const getRepository = async (owner: string, repo: string) => {
  * @param owner Repository owner
  * @param repo Repository name
  */
-export const getContributors = async (owner: string, repo: string): Promise<Contributor[]> => {
-  const response = await githubClient.get(`/repos/${owner}/${repo}/contributors`);
-  
+export const getContributors = async (
+  owner: string,
+  repo: string,
+): Promise<Contributor[]> => {
+  const response = await githubClient.get(
+    `/repos/${owner}/${repo}/contributors`,
+  );
+
   // Map the GitHub API response to our Contributor model
   return Promise.all(
     response.data.map(async (contributor: any) => {
       // Get additional user details for name and email
       const userDetails = await getUserDetails(contributor.login);
-      
+
       return {
         id: contributor.id,
         avatar: contributor.avatar_url,
         name: userDetails.name || contributor.login,
         email: userDetails.email || 'Нет данных',
         mergeCount: contributor.contributions,
-        selected: false
+        selected: false,
       };
-    })
+    }),
   );
 };
 
@@ -91,16 +104,16 @@ export const getContributorPullRequests = async (
   repo: string,
   contributor: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ) => {
   // Format the date to GitHub search query format
   const dateFilter = `created:${startDate}..${endDate}`;
-  
+
   // Fetch merged PRs by the contributor
   const response = await githubClient.get(
-    `/search/issues?q=repo:${owner}/${repo}+author:${contributor}+is:pr+is:merged+${dateFilter}`
+    `/search/issues?q=repo:${owner}/${repo}+author:${contributor}+is:pr+is:merged+${dateFilter}`,
   );
-  
+
   return response.data.items;
 };
 
@@ -111,34 +124,40 @@ export const getContributorPullRequests = async (
 export const analyzeCodeQuality = async (
   owner: string,
   repo: string,
-  contributorEmail: string,
+  contributorId: number,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<CodeReview> => {
   // In a real implementation, this would call an AI service to analyze the code
   // For now, we'll return mock data
-  
+
   // Generate a random score between 6 and 10
   const randomScore = Math.floor(Math.random() * 5) + 6;
-  
-  // Find the contributor by email to get their details
+
+  // Find the contributor by id to get their details
   const contributors = await getContributors(owner, repo);
-  const contributor = contributors.find(c => c.email === contributorEmail) || contributors[0];
-  
+  const contributor = contributors.find((c) => c.id === contributorId);
+
+  // If no contributor found with this id, return an error
+  if (!contributor) {
+    throw new Error(`Contributor with id ${contributorId} not found`);
+  }
+
   return {
-    id: contributor.id,
+    id: `${contributor.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`, // Уникальный ID
     avatar: contributor.avatar,
     name: contributor.name,
     email: contributor.email,
     mergeCount: Math.floor(Math.random() * 10) + 1, // Mock merged count
-    status: randomScore >= 8 ? 'Нормас' : randomScore >= 7 ? 'Внимание' : 'Критично',
+    status:
+      randomScore >= 8 ? 'Норма' : randomScore >= 7 ? 'Внимание' : 'Критично',
     rating: randomScore,
     details: {
       codeStyle: Math.floor(Math.random() * 5) + 6,
       bugFixes: Math.floor(Math.random() * 5) + 6,
       performance: Math.floor(Math.random() * 5) + 6,
-      security: Math.floor(Math.random() * 5) + 6
-    }
+      security: Math.floor(Math.random() * 5) + 6,
+    },
   };
 };
 
@@ -153,16 +172,16 @@ export const analyzeCodeQuality = async (
 export const performCodeReviews = async (
   owner: string,
   repo: string,
-  contributors: string[],
+  contributors: number[],
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<CodeReview[]> => {
   const reviews = await Promise.all(
-    contributors.map(email => 
-      analyzeCodeQuality(owner, repo, email, startDate, endDate)
-    )
+    contributors.map((id) =>
+      analyzeCodeQuality(owner, repo, id, startDate, endDate),
+    ),
   );
-  
+
   return reviews;
 };
 
@@ -170,27 +189,29 @@ export const performCodeReviews = async (
  * Parses a repository URL to extract owner and repo name
  * @param repoUrl Repository URL
  */
-export const parseRepositoryUrl = (repoUrl: string): { owner: string; repo: string } | null => {
+export const parseRepositoryUrl = (
+  repoUrl: string,
+): { owner: string; repo: string } | null => {
   try {
     let url: URL;
-    
+
     // Handle URLs without protocol
     if (!repoUrl.startsWith('http')) {
       url = new URL(`https://${repoUrl}`);
     } else {
       url = new URL(repoUrl);
     }
-    
+
     // Extract path components
     const pathParts = url.pathname.split('/').filter(Boolean);
-    
+
     if (pathParts.length >= 2) {
       return {
         owner: pathParts[0],
-        repo: pathParts[1]
+        repo: pathParts[1],
       };
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error parsing repository URL:', error);

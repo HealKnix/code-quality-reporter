@@ -1,18 +1,17 @@
-import * as React from "react"
-import { addDays, format } from "date-fns"
-import { ru } from "date-fns/locale"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { DateRange } from "react-day-picker"
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
 
-import { cn } from "../../lib/utils"
-import { Button } from "./button"
-import { Calendar } from "./calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "./popover"
+import { cn } from '../../lib/utils';
+import { Button } from './button';
+import { Calendar } from './calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
 interface DateRangePickerProps {
-  dateRange: DateRange | undefined
-  setDateRange: (date: DateRange | undefined) => void
-  className?: string
+  dateRange: DateRange | undefined;
+  setDateRange: (date: DateRange | undefined) => void;
+  className?: string;
 }
 
 export function DateRangePicker({
@@ -21,26 +20,26 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   return (
-    <div className={cn("grid gap-2", className)}>
+    <div className={cn('grid gap-2', className)}>
       <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant={'outline'}
             className={cn(
-              "w-full justify-start text-left font-normal",
-              !dateRange && "text-muted-foreground"
+              'w-full justify-start text-left font-normal',
+              !dateRange && 'text-muted-foreground',
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
               dateRange.to ? (
                 <>
-                  {format(dateRange.from, "dd.MM.yy", { locale: ru })} -{" "}
-                  {format(dateRange.to, "dd.MM.yy", { locale: ru })}
+                  {format(dateRange.from, 'dd.MM.yy', { locale: ru })} -{' '}
+                  {format(dateRange.to, 'dd.MM.yy', { locale: ru })}
                 </>
               ) : (
-                format(dateRange.from, "dd.MM.yy", { locale: ru })
+                format(dateRange.from, 'dd.MM.yy', { locale: ru })
               )
             ) : (
               <span>Выберите период мерджей</span>
@@ -49,7 +48,6 @@ export function DateRangePicker({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            initialFocus
             mode="range"
             defaultMonth={dateRange?.from}
             selected={dateRange}
@@ -57,11 +55,11 @@ export function DateRangePicker({
             numberOfMonths={2}
             styles={{
               caption_label: { textTransform: 'capitalize' },
-              head_cell: { width: '48px', overflow: 'hidden' }
+              head_cell: { width: '48px', overflow: 'hidden' },
             }}
           />
         </PopoverContent>
       </Popover>
     </div>
-  )
+  );
 }

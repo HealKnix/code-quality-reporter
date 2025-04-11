@@ -1,3 +1,5 @@
+import { ReactNode } from 'react';
+
 export interface Contributor {
   id: number;
   avatar: string;
@@ -8,12 +10,12 @@ export interface Contributor {
 }
 
 export interface CodeReview {
-  id: number;
+  id: string | number;
   avatar: string;
   name: string;
   email: string;
   mergeCount: number;
-  status: 'Нормас' | 'Внимание' | 'Критично';
+  status: 'Норма' | 'Внимание' | 'Критично';
   rating: number;
   details?: {
     codeStyle: number;
@@ -32,4 +34,8 @@ export interface Repository {
 export interface DateRange {
   start: string;
   end: string;
+}
+
+export interface Child {
+  children: ReactNode;
 }
