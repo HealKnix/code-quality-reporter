@@ -16,6 +16,8 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { DateRange } from 'react-day-picker';
 import { getMergedPullRequests } from '../services/github.service';
+import { Toaster } from '../components/ui/toaster';
+import { useToast } from '../hooks/use-toast';
 
 const MainPage: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -24,7 +26,7 @@ const MainPage: React.FC = () => {
   >([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
-  const [noMergesWarning, setNoMergesWarning] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // React Query hooks
   const {
@@ -47,6 +49,12 @@ const MainPage: React.FC = () => {
     },
     onError: (error: Error) => {
       console.error('Error performing code reviews:', error);
+      // Показываем toast с ошибкой
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: error.message,
+      });
     },
   });
 
@@ -57,14 +65,17 @@ const MainPage: React.FC = () => {
 
   const handleContributorSelect = (contributors: Contributor[]) => {
     setSelectedContributors(contributors);
-    // При изменении выбора контрибьютеров сбрасываем предупреждение
-    setNoMergesWarning(null);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   };
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
-    // При изменении периода сбрасываем предупреждение
-    setNoMergesWarning(null);
   };
 
   const handleGenerateReview = async () => {
@@ -76,9 +87,6 @@ const MainPage: React.FC = () => {
     ) {
       return;
     }
-
-    // Сбрасываем предупреждение перед проверкой
-    setNoMergesWarning(null);
 
     const startDate = dateRange.from.toISOString().split('T')[0];
     const endDate = dateRange.to.toISOString().split('T')[0];
@@ -106,9 +114,16 @@ const MainPage: React.FC = () => {
           .map((c) => c.name)
           .join(', ');
 
-        setNoMergesWarning(
-          `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
-        );
+        // Показываем toast с предупреждением
+        toast({
+          variant: "warning",
+          title: "Предупреждение",
+          description: `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
+        });
+        
+        // Прокручиваем страницу вверх для видимости сообщения
+        scrollToTop();
+        
         return; // Прерываем выполнение, не запускаем анализ
       }
 
@@ -124,7 +139,13 @@ const MainPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error checking for merges:', error);
-      setNoMergesWarning('Ошибка при проверке мерджей. Попробуйте ещё раз.');
+      // Показываем toast с ошибкой
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: 'Ошибка при проверке мерджей. Попробуйте ещё раз.',
+      });
+      scrollToTop();
     }
   };
 
@@ -132,38 +153,30 @@ const MainPage: React.FC = () => {
     isLoadingRepo || isLoadingContributors || codeReviewMutation.isPending;
   const error = repoError || codeReviewMutation.error;
 
+  // Если есть ошибка, показываем toast с ошибкой
+  React.useEffect(() => {
+    if (error) {
+      let description = error instanceof Error ? error.message : 'Произошла ошибка';
+      
+      if (error instanceof Error && error.message.includes('rate limit')) {
+        description = `${description}\nДостигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)`;
+      }
+      
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description,
+      });
+      scrollToTop();
+    }
+  }, [error, toast]);
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Header />
-
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Ошибка</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error ? error.message : 'Произошла ошибка'}
-            {error instanceof Error && error.message.includes('rate limit') && (
-              <div className="mt-2">
-                <p>Достигнут лимит запросов к GitHub API. Вы можете:</p>
-                <ul className="list-disc list-inside mt-1">
-                  <li>Подождать некоторое время</li>
-                  <li>
-                    Добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)
-                  </li>
-                </ul>
-              </div>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {noMergesWarning && (
-        <Alert className="mb-6 border-amber-500 bg-amber-50 text-amber-800">
-          <Info className="h-4 w-4 text-amber-500" />
-          <AlertTitle>Предупреждение</AlertTitle>
-          <AlertDescription>{noMergesWarning}</AlertDescription>
-        </Alert>
-      )}
+      
+      {/* Добавляем компонент Toaster для отображения уведомлений */}
+      <Toaster />
 
       <RepositoryInput onSubmit={handleRepositorySubmit} />
 
