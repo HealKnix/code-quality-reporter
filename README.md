@@ -1,46 +1,130 @@
-# Getting Started with Create React App
+# Code Quality Reporter
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+<div align="center">
+  <img src="public/logo192.png" alt="Code Quality Reporter Logo" width="100" />
+  <h3>Анализатор качества кода для GitHub репозиториев</h3>
+</div>
 
-## Available Scripts
+## Описание проекта
 
-In the project directory, you can run:
+Code Quality Reporter - это веб-приложение, которое позволяет проводить анализ качества кода контрибьютеров GitHub репозиториев. Приложение предоставляет информацию о стиле кода, исправлении ошибок, производительности и безопасности на основе вкладов разработчиков за выбранный период времени.
 
-### `npm start`
+<div align="center">
+  <img src="docs/screenshot.png" alt="Application Screenshot" width="800" />
+</div>
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Основные возможности
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+- Поиск и анализ GitHub репозиториев по URL
+- Отображение и выбор контрибьютеров для анализа
+- Выбор периода времени для анализа с удобным календарем
+- Визуализация результатов анализа качества кода
+- Адаптивный дизайн для различных устройств
+- Поддержка русского языка в интерфейсе
 
-### `npm test`
+## Технологии
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **React** и **TypeScript** - для разработки пользовательского интерфейса
+- **React Query** - для управления данными и состоянием
+- **Axios** - для выполнения API-запросов
+- **Radix UI** - для стильных и современных UI-компонентов
+- **GitHub API** - для получения данных о репозиториях и контрибьютерах
+- **react-day-picker** и **date-fns** - для функциональности выбора дат
 
-### `npm run build`
+## Установка и запуск
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Предварительные требования
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- Node.js (версия 14.x или выше)
+- npm или yarn
+- Персональный токен GitHub (опционально, для увеличения лимита API-запросов)
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Шаги установки
 
-### `npm run eject`
+1. **Клонируйте репозиторий**
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```bash
+git clone https://github.com/yourusername/code-quality-reporter.git
+cd code-quality-reporter
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. **Установите зависимости**
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+```bash
+npm install
+# или
+yarn install
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+3. **Создайте файл .env для конфигурации**
 
-## Learn More
+Создайте файл `.env` в корневой директории проекта:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+REACT_APP_GITHUB_TOKEN=your_github_personal_access_token
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+> **Примечание**: GitHub API имеет ограничение на количество запросов (60 в час без авторизации, 5000 в час с авторизацией). Для полноценного использования рекомендуется добавить токен.
+
+4. **Запустите приложение в режиме разработки**
+
+```bash
+npm start
+# или
+yarn start
+```
+
+Приложение будет доступно по адресу [http://localhost:3000](http://localhost:3000).
+
+## Использование
+
+1. **Введите URL GitHub репозитория** в поле ввода (например, `https://github.com/facebook/react`)
+2. **Выберите контрибьютеров** для анализа из списка
+3. **Укажите период времени** для анализа с помощью календаря
+4. **Нажмите кнопку "Заход-ревьюить"** для запуска анализа
+5. **Просмотрите результаты** анализа качества кода
+
+## Получение GitHub токена
+
+Для получения персонального токена GitHub:
+
+1. Войдите в свой аккаунт GitHub
+2. Перейдите в Settings → Developer settings → Personal access tokens → Fine-grained tokens
+3. Нажмите "Generate new token"
+4. Выберите необходимые разрешения (минимум: `public_repo`, `read:user`)
+5. Скопируйте созданный токен и добавьте его в файл `.env`
+
+## Структура проекта
+
+```
+src/
+├── components/        # UI компоненты
+│   ├── CodeReview/    # Компоненты для отображения результатов анализа
+│   ├── Contributors/  # Компоненты для работы с контрибьютерами
+│   ├── Layout/        # Компоненты разметки страницы
+│   ├── Repository/    # Компоненты для работы с репозиториями
+│   └── ui/            # Базовые UI компоненты (shadcn/ui)
+├── hooks/             # React хуки
+├── pages/             # Страницы приложения
+├── services/          # Сервисы для работы с API
+├── types/             # TypeScript типы и интерфейсы
+└── utils/             # Вспомогательные функции
+```
+
+## Вклад в проект
+
+Вклады всегда приветствуются! Если у вас есть идеи по улучшению приложения:
+
+1. Создайте форк проекта
+2. Создайте ветку для вашей функциональности (`git checkout -b feature/amazing-feature`)
+3. Зафиксируйте изменения (`git commit -m 'Add some amazing feature'`)
+4. Отправьте изменения в ваш форк (`git push origin feature/amazing-feature`)
+5. Откройте Pull Request
+
+## Лицензия
+
+Проект распространяется под лицензией MIT. Подробности в файле [LICENSE](LICENSE).
+
+## Контакты
+
+Если у вас возникли вопросы или предложения, свяжитесь с нами по email: example@example.com
