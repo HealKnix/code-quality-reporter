@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 
 export interface Contributor {
   id: number;
+  login: string; 
   avatar: string;
   name: string;
   email: string;
