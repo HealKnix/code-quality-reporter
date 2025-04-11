@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table';
+import { useToast } from '../../hooks/use-toast';
 
 interface CodeReviewResultsProps {
   reviews: CodeReview[];
@@ -39,6 +40,8 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
           return 'secondary';
       }
     };
+
+    const { toast } = useToast();
 
     return (
       <Card className="mb-6" ref={ref}>
@@ -111,7 +114,17 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
           </Table>
         </CardContent>
         <CardFooter>
-          <Button>Сформировать отчет</Button>
+          <Button
+            onClick={() => {
+              toast({
+                variant: 'success',
+                title: 'Успешно',
+                description: 'Отчёт сформирован',
+              });
+            }}
+          >
+            Сформировать отчет
+          </Button>
         </CardFooter>
       </Card>
     );
