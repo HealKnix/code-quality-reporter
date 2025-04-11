@@ -11,10 +11,11 @@ import {
   useCodeReviews,
 } from '../hooks/useGitHubQueries';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { DateRange } from 'react-day-picker';
+import { getMergedPullRequests } from '../services/github.service';
 
 const MainPage: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -23,6 +24,7 @@ const MainPage: React.FC = () => {
   >([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
+  const [noMergesWarning, setNoMergesWarning] = useState<string | null>(null);
 
   // React Query hooks
   const {
@@ -55,6 +57,14 @@ const MainPage: React.FC = () => {
 
   const handleContributorSelect = (contributors: Contributor[]) => {
     setSelectedContributors(contributors);
+    // При изменении выбора контрибьютеров сбрасываем предупреждение
+    setNoMergesWarning(null);
+  };
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    // При изменении периода сбрасываем предупреждение
+    setNoMergesWarning(null);
   };
 
   const handleGenerateReview = async () => {
@@ -67,17 +77,55 @@ const MainPage: React.FC = () => {
       return;
     }
 
-    const contributorIds = selectedContributors.map((c) => c.id);
+    // Сбрасываем предупреждение перед проверкой
+    setNoMergesWarning(null);
+
     const startDate = dateRange.from.toISOString().split('T')[0];
     const endDate = dateRange.to.toISOString().split('T')[0];
 
-    codeReviewMutation.mutate({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      contributors: contributorIds,
-      startDate,
-      endDate,
-    });
+    // Проверяем наличие мерджей у выбранных контрибьютеров за указанный период
+    try {
+      const mergeCountMap = await getMergedPullRequests(
+        repoInfo.owner,
+        repoInfo.repo,
+        startDate,
+        endDate,
+      );
+
+      // Проверяем каждого выбранного контрибьютера
+      const contributorsWithNoMerges = selectedContributors.filter(
+        (contributor) => {
+          const mergeCount = mergeCountMap.get(contributor.login) || 0;
+          return mergeCount === 0;
+        },
+      );
+
+      if (contributorsWithNoMerges.length > 0) {
+        // Формируем список контрибьютеров без мерджей
+        const noMergesNames = contributorsWithNoMerges
+          .map((c) => c.name)
+          .join(', ');
+
+        setNoMergesWarning(
+          `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
+        );
+        return; // Прерываем выполнение, не запускаем анализ
+      }
+
+      // Если у всех контрибьютеров есть мерджи, продолжаем с анализом
+      const contributorIds = selectedContributors.map((c) => c.id);
+
+      codeReviewMutation.mutate({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        contributors: contributorIds,
+        startDate,
+        endDate,
+      });
+    } catch (error) {
+      console.error('Error checking for merges:', error);
+      setNoMergesWarning('Ошибка при проверке мерджей. Попробуйте ещё раз.');
+    }
   };
 
   const isLoading =
@@ -106,6 +154,14 @@ const MainPage: React.FC = () => {
               </div>
             )}
           </AlertDescription>
+        </Alert>
+      )}
+
+      {noMergesWarning && (
+        <Alert className="mb-6 border-amber-500 bg-amber-50 text-amber-800">
+          <Info className="h-4 w-4 text-amber-500" />
+          <AlertTitle>Предупреждение</AlertTitle>
+          <AlertDescription>{noMergesWarning}</AlertDescription>
         </Alert>
       )}
 
