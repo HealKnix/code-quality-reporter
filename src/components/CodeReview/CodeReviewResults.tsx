@@ -21,13 +21,17 @@ import { Badge } from '../ui/badge';
 
 interface CodeReviewResultsProps {
   reviews: CodeReview[];
+  dateRangeFormatted?: string;
 }
 
-const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({ reviews }) => {
+const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({ 
+  reviews,
+  dateRangeFormatted = ''
+}) => {
   // Function to get badge variant based on status
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'Нормас':
+      case 'Норма':
         return 'success';
       case 'Внимание':
         return 'warning';
@@ -41,7 +45,14 @@ const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({ reviews }) => {
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle className="text-xl">Код-ревью</CardTitle>
+        <CardTitle className="text-xl">
+          Код-ревью
+          {dateRangeFormatted && (
+            <span className="ml-2 text-base font-normal text-muted-foreground">
+              за период {dateRangeFormatted}
+            </span>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Table>

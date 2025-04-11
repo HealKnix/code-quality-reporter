@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Header from '../components/Layout/Header';
 import RepositoryInput from '../components/Repository/RepositoryInput';
 import ContributorsList from '../components/Contributors/ContributorsList';
@@ -10,14 +10,14 @@ import {
   useContributors,
   useCodeReviews,
 } from '../hooks/useGitHubQueries';
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { AlertTriangle, Info } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { DateRange } from 'react-day-picker';
 import { getMergedPullRequests } from '../services/github.service';
 import { Toaster } from '../components/ui/toaster';
 import { useToast } from '../hooks/use-toast';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 const MainPage: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -27,6 +27,7 @@ const MainPage: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
   const { toast } = useToast();
+  const contributorsRef = useRef<HTMLDivElement>(null);
 
   // React Query hooks
   const {
@@ -67,15 +68,24 @@ const MainPage: React.FC = () => {
     setSelectedContributors(contributors);
   };
 
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
+  const scrollToContributors = () => {
+    if (contributorsRef.current) {
+      contributorsRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
+  };
+
+  // Форматирование периода для отображения
+  const formatDateRange = (range?: DateRange) => {
+    if (!range?.from || !range?.to) return '';
+    
+    const fromFormatted = format(range.from, 'dd.MM.yyyy', { locale: ru });
+    const toFormatted = format(range.to, 'dd.MM.yyyy', { locale: ru });
+    
+    return `${fromFormatted} - ${toFormatted}`;
   };
 
   const handleGenerateReview = async () => {
@@ -121,8 +131,8 @@ const MainPage: React.FC = () => {
           description: `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
         });
         
-        // Прокручиваем страницу вверх для видимости сообщения
-        scrollToTop();
+        // Прокручиваем страницу к списку контрибьютеров
+        scrollToContributors();
         
         return; // Прерываем выполнение, не запускаем анализ
       }
@@ -145,7 +155,7 @@ const MainPage: React.FC = () => {
         title: "Ошибка",
         description: 'Ошибка при проверке мерджей. Попробуйте ещё раз.',
       });
-      scrollToTop();
+      scrollToContributors();
     }
   };
 
@@ -167,7 +177,6 @@ const MainPage: React.FC = () => {
         title: "Ошибка",
         description,
       });
-      scrollToTop();
     }
   }, [error, toast]);
 
@@ -189,10 +198,12 @@ const MainPage: React.FC = () => {
         <>
           {hasRepoInfo && contributors.length > 0 && (
             <>
-              <ContributorsList
-                contributors={contributors}
-                onContributorSelect={handleContributorSelect}
-              />
+              <div ref={contributorsRef}>
+                <ContributorsList
+                  contributors={contributors}
+                  onContributorSelect={handleContributorSelect}
+                />
+              </div>
 
               <DateRangePicker
                 onDateRangeChange={(startDate, endDate) => {
@@ -230,7 +241,10 @@ const MainPage: React.FC = () => {
           )}
 
           {codeReviews.length > 0 && (
-            <CodeReviewResults reviews={codeReviews} />
+            <CodeReviewResults 
+              reviews={codeReviews} 
+              dateRangeFormatted={formatDateRange(dateRange)}
+            />
           )}
         </>
       )}
