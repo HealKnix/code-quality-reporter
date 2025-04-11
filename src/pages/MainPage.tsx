@@ -214,6 +214,12 @@ const MainPage: React.FC = () => {
               </div>
 
               <DateRangePicker
+                min={
+                  new Date(
+                    repoInfo?.repoData.created_at ?? new Date('2000-01-01'),
+                  )
+                }
+                max={new Date()}
                 onDateRangeChange={(startDate, endDate) => {
                   if (startDate && endDate) {
                     setDateRange({

@@ -7,10 +7,14 @@ import { format } from 'date-fns';
 
 interface DateRangePickerProps {
   onDateRangeChange: (startDate: string, endDate: string) => void;
+  min?: Date;
+  max?: Date;
 }
 
 const DateRangePicker: React.FC<DateRangePickerProps> = ({
   onDateRangeChange,
+  min,
+  max,
 }) => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
@@ -37,6 +41,8 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
             <ShadcnDateRangePicker
               dateRange={dateRange}
               setDateRange={handleDateRangeChange}
+              min={min}
+              max={max}
             />
           </div>
         </div>

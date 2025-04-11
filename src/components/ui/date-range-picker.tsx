@@ -12,12 +12,16 @@ interface DateRangePickerProps {
   dateRange: DateRange | undefined;
   setDateRange: (date: DateRange | undefined) => void;
   className?: string;
+  min?: Date;
+  max?: Date;
 }
 
 export function DateRangePicker({
   dateRange,
   setDateRange,
   className,
+  min,
+  max,
 }: DateRangePickerProps) {
   return (
     <div className={cn('grid gap-2', className)}>
@@ -54,6 +58,10 @@ export function DateRangePicker({
             defaultMonth={dateRange?.from}
             selected={dateRange}
             onSelect={setDateRange}
+            disabled={(date) => {
+              if (!min || !max) return true;
+              return date > max || date < min;
+            }}
             numberOfMonths={2}
           />
         </PopoverContent>

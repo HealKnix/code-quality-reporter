@@ -29,7 +29,7 @@ export interface CodeReview {
 export interface Repository {
   name: string;
   url: string;
-  platform: 'GitHub' | 'GitLab' | 'Bitbucket';
+  created_at: Date;
 }
 
 export interface DateRange {
