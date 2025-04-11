@@ -6,7 +6,7 @@ const Header: React.FC = () => {
     <Card className="mb-8 border-none shadow-none">
       <CardHeader className="text-center">
         <CardTitle className="text-3xl font-bold">
-          ГЕНЕРАТОР ОТЧЁТОВ 3000
+        Анализатор качества кода для GitHub репозиториев
         </CardTitle>
       </CardHeader>
     </Card>
