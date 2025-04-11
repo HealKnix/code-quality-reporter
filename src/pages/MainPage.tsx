@@ -63,7 +63,11 @@ const MainPage: React.FC = () => {
           ),
         });
       }
-      setCodeReviews(data.filter((c) => c.mergeCount > 0));
+      setCodeReviews(
+        data
+          .filter((c) => c.mergeCount > 0)
+          .sort((a, b) => b.rating - a.rating),
+      );
       scrollToResults();
     },
     onError: (error: Error) => {
