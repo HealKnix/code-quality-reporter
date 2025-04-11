@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef, ForwardedRef } from 'react';
 import { CodeReview } from '../../types';
 import {
   Card,
@@ -24,10 +24,10 @@ interface CodeReviewResultsProps {
   dateRangeFormatted?: string;
 }
 
-const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({
+const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(({
   reviews,
   dateRangeFormatted = '',
-}) => {
+}, ref) => {
   // Function to get badge variant based on status
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -43,7 +43,7 @@ const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({
   };
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6" ref={ref}>
       <CardHeader>
         <CardTitle className="text-xl">
           Код-ревью
@@ -85,7 +85,7 @@ const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge
-                      variant={getStatusVariant(review.status) as any}
+                      variant={getStatusVariant(review.status)}
                       className="font-medium"
                     >
                       {review.status}
@@ -115,6 +115,8 @@ const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({
       </CardFooter>
     </Card>
   );
-};
+});
+
+CodeReviewResults.displayName = 'CodeReviewResults';
 
 export default CodeReviewResults;

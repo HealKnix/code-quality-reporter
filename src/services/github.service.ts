@@ -209,7 +209,7 @@ export const analyzeCodeQuality = async (
   const mergeCount = mergeCountMap.get(contributor.login) || 0;
 
   return {
-    id: `${contributor.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`, // Уникальный ID
+    id: contributor.id,
     avatar: contributor.avatar,
     name: contributor.name,
     email: contributor.email,

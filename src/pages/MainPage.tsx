@@ -1,23 +1,22 @@
-import React, { useState, useRef } from 'react';
-import Header from '../components/Layout/Header';
-import RepositoryInput from '../components/Repository/RepositoryInput';
-import ContributorsList from '../components/Contributors/ContributorsList';
-import DateRangePicker from '../components/CodeReview/DateRangePicker';
-import CodeReviewResults from '../components/CodeReview/CodeReviewResults';
-import { Contributor, CodeReview } from '../types';
-import {
-  useRepositoryInfo,
-  useContributors,
-  useCodeReviews,
-} from '../hooks/useGitHubQueries';
-import { Loader2 } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { DateRange } from 'react-day-picker';
-import { getMergedPullRequests } from '../services/github.service';
-import { Toaster } from '../components/ui/toaster';
-import { useToast } from '../hooks/use-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { Loader2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { DateRange } from 'react-day-picker';
+import CodeReviewResults from '../components/CodeReview/CodeReviewResults';
+import DateRangePicker from '../components/CodeReview/DateRangePicker';
+import ContributorsList from '../components/Contributors/ContributorsList';
+import Header from '../components/Layout/Header';
+import RepositoryInput from '../components/Repository/RepositoryInput';
+import { Button } from '../components/ui/button';
+import { Toaster } from '../components/ui/toaster';
+import { useToast } from '../hooks/use-toast';
+import {
+  useCodeReviews,
+  useContributors,
+  useRepositoryInfo,
+} from '../hooks/useGitHubQueries';
+import { CodeReview, Contributor } from '../types';
 
 const MainPage: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -28,6 +27,7 @@ const MainPage: React.FC = () => {
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
   const { toast } = useToast();
   const contributorsRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   // React Query hooks
   const {
@@ -46,7 +46,25 @@ const MainPage: React.FC = () => {
 
   const codeReviewMutation = useCodeReviews({
     onSuccess: (data) => {
-      setCodeReviews(data);
+      if (data.some((c) => c.mergeCount === 0)) {
+        // Формируем список контрибьютеров без мерджей
+        const noMergesNames = data.map((c) => c.name).join(', ');
+
+        // Показываем toast с предупреждением
+        toast({
+          variant: 'warning',
+          title: 'Предупреждение',
+          description: (
+            <>
+              Следующие контрибьютеры не имеют мерджей за период (
+              {formatDateRange(dateRange)}): <strong>{noMergesNames}</strong>.
+              Выберите другой период или других контрибьютеров.
+            </>
+          ),
+        });
+      }
+      setCodeReviews(data.filter((c) => c.mergeCount > 0));
+      scrollToResults();
     },
     onError: (error: Error) => {
       console.error('Error performing code reviews:', error);
@@ -54,8 +72,9 @@ const MainPage: React.FC = () => {
       toast({
         variant: 'destructive',
         title: 'Ошибка',
-        description: error.message,
+        description: `Ошибка при проверке мерджей. Попробуйте ещё раз.\n${error.message}`,
       });
+      scrollToContributors();
     },
   });
 
@@ -74,8 +93,13 @@ const MainPage: React.FC = () => {
     }
   };
 
-  const handleDateRangeChange = (range: DateRange | undefined) => {
-    setDateRange(range);
+  const scrollToResults = () => {
+    setTimeout(() => {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: 'smooth',
+      });
+    }, 1);
   };
 
   // Форматирование периода для отображения
@@ -101,66 +125,51 @@ const MainPage: React.FC = () => {
     const startDate = dateRange.from.toISOString().split('T')[0];
     const endDate = dateRange.to.toISOString().split('T')[0];
 
-    // Проверяем наличие мерджей у выбранных контрибьютеров за указанный период
-    try {
-      const mergeCountMap = await getMergedPullRequests(
-        repoInfo.owner,
-        repoInfo.repo,
-        startDate,
-        endDate,
-      );
+    // Проверяем каждого выбранного контрибьютера
+    const contributorsWithNoMerges = selectedContributors.filter(
+      (contributor) => contributor.mergeCount === 0,
+    );
 
-      // Проверяем каждого выбранного контрибьютера
-      const contributorsWithNoMerges = selectedContributors.filter(
-        (contributor) => {
-          const mergeCount = mergeCountMap.get(contributor.login) || 0;
-          return mergeCount === 0;
-        },
-      );
+    if (contributorsWithNoMerges.length > 0) {
+      // Формируем список контрибьютеров без мерджей
+      const noMergesNames = contributorsWithNoMerges
+        .map((c) => c.name)
+        .join(', ');
 
-      if (contributorsWithNoMerges.length > 0) {
-        // Формируем список контрибьютеров без мерджей
-        const noMergesNames = contributorsWithNoMerges
-          .map((c) => c.name)
-          .join(', ');
+      // Показываем toast с предупреждением
+      toast({
+        variant: 'warning',
+        title: 'Предупреждение',
+        description: (
+          <>
+            Следующие контрибьютеры не имеют мерджей:{' '}
+            <strong>{noMergesNames}</strong>. Выберите других контрибьютеров.
+          </>
+        ),
+      });
 
-        // Показываем toast с предупреждением
-        toast({
-          variant: 'warning',
-          title: 'Предупреждение',
-          description: `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
-        });
+      // Прокручиваем страницу к списку контрибьютеров
+      scrollToContributors();
 
-        // Прокручиваем страницу к списку контрибьютеров
-        scrollToContributors();
-
+      if (selectedContributors.every((c) => c.mergeCount === 0)) {
         return; // Прерываем выполнение, не запускаем анализ
       }
-
-      // Если у всех контрибьютеров есть мерджи, продолжаем с анализом
-      const contributorIds = selectedContributors.map((c) => c.id);
-
-      codeReviewMutation.mutate({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        contributors: contributorIds,
-        startDate,
-        endDate,
-      });
-    } catch (error) {
-      console.error('Error checking for merges:', error);
-      // Показываем toast с ошибкой
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Ошибка при проверке мерджей. Попробуйте ещё раз.',
-      });
-      scrollToContributors();
     }
+
+    // Если у всех контрибьютеров есть мерджи, продолжаем с анализом
+    const contributorIds = selectedContributors
+      .filter((c) => c.mergeCount > 0)
+      .map((c) => c.id);
+
+    codeReviewMutation.mutate({
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+      contributors: contributorIds,
+      startDate,
+      endDate,
+    });
   };
 
-  const isLoading =
-    isLoadingRepo || isLoadingContributors || codeReviewMutation.isPending;
   const error = repoError || codeReviewMutation.error;
 
   // Если есть ошибка, показываем toast с ошибкой
@@ -184,20 +193,18 @@ const MainPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Header />
-
-      {/* Добавляем компонент Toaster для отображения уведомлений */}
       <Toaster />
 
       <RepositoryInput onSubmit={handleRepositorySubmit} />
 
-      {isLoading ? (
+      {isLoadingRepo || isLoadingContributors ? (
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-muted-foreground">Загрузка данных...</p>
         </div>
       ) : (
         <>
-          {hasRepoInfo && contributors.length > 0 && (
+          {hasRepoInfo && contributors.length > 0 && !isLoadingContributors && (
             <>
               <div ref={contributorsRef}>
                 <ContributorsList
@@ -241,11 +248,13 @@ const MainPage: React.FC = () => {
             </>
           )}
 
-          {codeReviews.length > 0 && (
-            <CodeReviewResults
-              reviews={codeReviews}
-              dateRangeFormatted={formatDateRange(dateRange)}
-            />
+          {codeReviews.length > 0 && !codeReviewMutation.isPending && (
+            <div ref={resultsRef}>
+              <CodeReviewResults
+                reviews={codeReviews}
+                dateRangeFormatted={formatDateRange(dateRange)}
+              />
+            </div>
           )}
         </>
       )}

@@ -10,11 +10,11 @@ import {
   parseRepositoryUrl,
   performCodeReviews,
 } from '../services/github.service';
-import { CodeReview, Contributor } from '../types';
+import { CodeReview, Contributor, Repository } from '../types';
 
 // Define return type for repository info
 interface RepositoryInfoReturn {
-  repoData: any;
+  repoData: Repository;
   owner: string;
   repo: string;
 }
