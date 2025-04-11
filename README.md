@@ -51,9 +51,9 @@ cd code-quality-reporter
 2. **Установите зависимости**
 
 ```bash
-npm install
+npm install --legacy-peer-deps
 # или
-yarn install
+yarn install --legacy-peer-deps
 ```
 
 3. **Создайте файл .env для конфигурации**

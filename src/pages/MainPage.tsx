@@ -185,7 +185,7 @@ const MainPage: React.FC = () => {
       toast({
         variant: 'destructive',
         title: 'Ошибка',
-        description,
+        description: 'Проекта с таким названием не существует',
       });
     }
   }, [error, toast]);
