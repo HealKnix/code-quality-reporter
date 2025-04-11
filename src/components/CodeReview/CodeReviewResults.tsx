@@ -24,18 +24,18 @@ interface CodeReviewResultsProps {
   dateRangeFormatted?: string;
 }
 
-const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({ 
+const CodeReviewResults: React.FC<CodeReviewResultsProps> = ({
   reviews,
-  dateRangeFormatted = ''
+  dateRangeFormatted = '',
 }) => {
   // Function to get badge variant based on status
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'Норма':
+      case 'Хорошо':
         return 'success';
-      case 'Внимание':
+      case 'Средне':
         return 'warning';
-      case 'Критично':
+      case 'Плохо':
         return 'destructive';
       default:
         return 'secondary';

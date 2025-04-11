@@ -64,14 +64,16 @@ export const getContributors = async (
   owner: string,
   repo: string,
 ): Promise<Contributor[]> => {
-  const response = await githubClient.get(`/repos/${owner}/${repo}/contributors`);
-  
+  const response = await githubClient.get(
+    `/repos/${owner}/${repo}/contributors`,
+  );
+
   // Map the GitHub API response to our Contributor model
   const contributors = await Promise.all(
     response.data.map(async (contributor: any) => {
       // Get additional user details for name and email
       const userDetails = await getUserDetails(contributor.login);
-      
+
       return {
         id: contributor.id,
         login: contributor.login, // Сохраняем логин для последующих запросов
@@ -79,22 +81,22 @@ export const getContributors = async (
         name: userDetails.name || contributor.login,
         email: userDetails.email || 'Нет данных',
         mergeCount: 0, // Изначально ставим 0, потом заполним
-        selected: false
+        selected: false,
       };
-    })
+    }),
   );
 
   // Получаем количество мерджей для всех пользователей
   const mergeCountMap = await getMergedPullRequests(owner, repo);
-  
+
   // Обновляем каждого контрибьютера с количеством мерджей
-  return contributors.map(contributor => {
+  return contributors.map((contributor) => {
     const login = contributor.login;
     const mergeCount = mergeCountMap.get(login) || 0;
-    
+
     return {
       ...contributor,
-      mergeCount
+      mergeCount,
     };
   });
 };
@@ -110,21 +112,21 @@ export const getMergedPullRequests = async (
   owner: string,
   repo: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
 ): Promise<Map<string, number>> => {
   // Создаем Map для хранения количества мерджей для каждого пользователя
   const mergeCountMap = new Map<string, number>();
-  
+
   let dateFilter = '';
   if (startDate && endDate) {
     dateFilter = `+merged:${startDate}..${endDate}`;
   }
-  
+
   // Получаем все смерженные PR для репозитория с фильтром по датам
   const response = await githubClient.get(
-    `/search/issues?q=repo:${owner}/${repo}+is:pr+is:merged${dateFilter}&per_page=100`
+    `/search/issues?q=repo:${owner}/${repo}+is:pr+is:merged${dateFilter}&per_page=100`,
   );
-  
+
   if (response.data && response.data.items) {
     // Для каждого PR получаем информацию о пользователе и увеличиваем счетчик
     for (const pr of response.data.items) {
@@ -132,7 +134,7 @@ export const getMergedPullRequests = async (
       mergeCountMap.set(userLogin, (mergeCountMap.get(userLogin) || 0) + 1);
     }
   }
-  
+
   return mergeCountMap;
 };
 
@@ -162,12 +164,12 @@ export const getContributorPullRequests = async (
 ) => {
   // Format the date to GitHub search query format
   const dateFilter = `created:${startDate}..${endDate}`;
-  
+
   // Fetch merged PRs by the contributor
   const response = await githubClient.get(
     `/search/issues?q=repo:${owner}/${repo}+author:${contributor}+is:pr+is:merged+${dateFilter}`,
   );
-  
+
   return response.data.items;
 };
 
@@ -198,17 +200,21 @@ export const analyzeCodeQuality = async (
   }
 
   // Get actual merge count for this contributor
-  const mergeCountMap = await getMergedPullRequests(owner, repo, startDate, endDate);
+  const mergeCountMap = await getMergedPullRequests(
+    owner,
+    repo,
+    startDate,
+    endDate,
+  );
   const mergeCount = mergeCountMap.get(contributor.login) || 0;
-  
+
   return {
     id: `${contributor.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`, // Уникальный ID
     avatar: contributor.avatar,
     name: contributor.name,
     email: contributor.email,
     mergeCount, // Используем реальное количество мерджей
-    status:
-      randomScore >= 8 ? 'Норма' : randomScore >= 7 ? 'Внимание' : 'Критично',
+    status: randomScore >= 8 ? 'Хорошо' : randomScore >= 7 ? 'Средне' : 'Плохо',
     rating: randomScore,
     details: {
       codeStyle: Math.floor(Math.random() * 5) + 6,

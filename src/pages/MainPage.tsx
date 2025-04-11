@@ -52,8 +52,8 @@ const MainPage: React.FC = () => {
       console.error('Error performing code reviews:', error);
       // Показываем toast с ошибкой
       toast({
-        variant: "destructive",
-        title: "Ошибка",
+        variant: 'destructive',
+        title: 'Ошибка',
         description: error.message,
       });
     },
@@ -81,10 +81,10 @@ const MainPage: React.FC = () => {
   // Форматирование периода для отображения
   const formatDateRange = (range?: DateRange) => {
     if (!range?.from || !range?.to) return '';
-    
+
     const fromFormatted = format(range.from, 'dd.MM.yyyy', { locale: ru });
     const toFormatted = format(range.to, 'dd.MM.yyyy', { locale: ru });
-    
+
     return `${fromFormatted} - ${toFormatted}`;
   };
 
@@ -126,14 +126,14 @@ const MainPage: React.FC = () => {
 
         // Показываем toast с предупреждением
         toast({
-          variant: "warning",
-          title: "Предупреждение",
+          variant: 'warning',
+          title: 'Предупреждение',
           description: `Следующие контрибьютеры не имеют мерджей за выбранный период: ${noMergesNames}. Выберите другой период или других контрибьютеров.`,
         });
-        
+
         // Прокручиваем страницу к списку контрибьютеров
         scrollToContributors();
-        
+
         return; // Прерываем выполнение, не запускаем анализ
       }
 
@@ -151,8 +151,8 @@ const MainPage: React.FC = () => {
       console.error('Error checking for merges:', error);
       // Показываем toast с ошибкой
       toast({
-        variant: "destructive",
-        title: "Ошибка",
+        variant: 'destructive',
+        title: 'Ошибка',
         description: 'Ошибка при проверке мерджей. Попробуйте ещё раз.',
       });
       scrollToContributors();
@@ -166,15 +166,16 @@ const MainPage: React.FC = () => {
   // Если есть ошибка, показываем toast с ошибкой
   React.useEffect(() => {
     if (error) {
-      let description = error instanceof Error ? error.message : 'Произошла ошибка';
-      
+      let description =
+        error instanceof Error ? error.message : 'Произошла ошибка';
+
       if (error instanceof Error && error.message.includes('rate limit')) {
         description = `${description}\nДостигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)`;
       }
-      
+
       toast({
-        variant: "destructive",
-        title: "Ошибка",
+        variant: 'destructive',
+        title: 'Ошибка',
         description,
       });
     }
@@ -183,7 +184,7 @@ const MainPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Header />
-      
+
       {/* Добавляем компонент Toaster для отображения уведомлений */}
       <Toaster />
 
@@ -241,8 +242,8 @@ const MainPage: React.FC = () => {
           )}
 
           {codeReviews.length > 0 && (
-            <CodeReviewResults 
-              reviews={codeReviews} 
+            <CodeReviewResults
+              reviews={codeReviews}
               dateRangeFormatted={formatDateRange(dateRange)}
             />
           )}

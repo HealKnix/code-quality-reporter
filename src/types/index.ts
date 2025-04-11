@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 
 export interface Contributor {
   id: number;
-  login: string; 
+  login: string;
   avatar: string;
   name: string;
   email: string;
@@ -16,7 +16,7 @@ export interface CodeReview {
   name: string;
   email: string;
   mergeCount: number;
-  status: 'Норма' | 'Внимание' | 'Критично';
+  status: 'Хорошо' | 'Средне' | 'Плохо';
   rating: number;
   details?: {
     codeStyle: number;
