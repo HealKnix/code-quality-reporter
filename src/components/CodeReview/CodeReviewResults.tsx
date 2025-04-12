@@ -1,15 +1,15 @@
 import { forwardRef } from 'react';
-import { CodeReview } from '../../types';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
+import { CodeReview } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '../ui/card';
+} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -17,8 +17,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/table';
-import { useToast } from '../../hooks/use-toast';
+} from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
 
 interface CodeReviewResultsProps {
   reviews: CodeReview[];

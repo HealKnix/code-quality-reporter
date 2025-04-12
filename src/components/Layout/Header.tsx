@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Header: React.FC = () => {
   return (

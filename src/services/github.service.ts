@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CodeReview, Contributor } from '../types';
+import { CodeReview, Contributor } from '@/types';
 
 // GitHub API base URL
 const API_URL = 'https://api.github.com';

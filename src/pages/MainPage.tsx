@@ -3,19 +3,19 @@ import { ru } from 'date-fns/locale';
 import { Loader2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { DateRange } from 'react-day-picker';
-import CodeReviewResults from '../components/CodeReview/CodeReviewResults';
-import DateRangePicker from '../components/CodeReview/DateRangePicker';
-import ContributorsList from '../components/Contributors/ContributorsList';
-import Header from '../components/Layout/Header';
-import RepositoryInput from '../components/Repository/RepositoryInput';
-import { Button } from '../components/ui/button';
-import { Toaster } from '../components/ui/toaster';
-import { useToast } from '../hooks/use-toast';
+import CodeReviewResults from '@/components/CodeReview/CodeReviewResults';
+import DateRangePicker from '@/components/CodeReview/DateRangePicker';
+import ContributorsList from '@/components/Contributors/ContributorsList';
+import Header from '@/components/Layout/Header';
+import RepositoryInput from '@/components/Repository/RepositoryInput';
+import { Button } from '@/components/ui/button';
+import { Toaster } from '@/components/ui/toaster';
+import { useToast } from '@/hooks/use-toast';
 import {
   useCodeReviews,
   useContributors,
   useRepositoryInfo,
-} from '../hooks/useGitHubQueries';
+} from '@/hooks/useGitHubQueries';
 import { CodeReview, Contributor } from '../types';
 
 const MainPage: React.FC = () => {
