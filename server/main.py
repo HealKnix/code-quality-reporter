@@ -1,5 +1,4 @@
 import asyncio
-import datetime as dt
 import os
 
 import aiohttp
@@ -54,12 +53,16 @@ async def get_async(urls, text=False):
 async def get_github_repo(
     owner: str, repo: str, contributor: str, date_start: str, date_end: str
 ):
-    if not date_start == "0" or not date_end == "0":
+    if date_start == "0" or date_end == "0":
         date_str = ""
     else:
         date_str = f"+created:{date_start}..{date_end}"
 
-    response_repo = (
+    response_repo = (await get_async([f"https://api.github.com/repos/{owner}/{repo}"]))[
+        0
+    ]
+
+    response_merges = (
         await get_async(
             [
                 f"https://api.github.com/search/issues?q=repo:{owner}/{repo}+author:{contributor}+is:pr+is:merged{date_str}"
@@ -70,11 +73,11 @@ async def get_github_repo(
     response_users = await get_async(
         [
             f"https://api.github.com/users/{item['user']['login']}"
-            for item in response_repo["items"]
+            for item in response_merges["items"]
         ]
     )
 
-    for index, item in enumerate(response_repo["items"]):
+    for index, item in enumerate(response_merges["items"]):
         item["user"] = model.User(
             **item["user"],
             name=response_users[index]["name"],
@@ -84,11 +87,11 @@ async def get_github_repo(
     response_commits = await get_async(
         [
             f"https://api.github.com/repos/{owner}/{repo}/pulls/{item['number']}/commits"
-            for item in response_repo["items"]
+            for item in response_merges["items"]
         ]
     )
 
-    for index, item in enumerate(response_repo["items"]):
+    for index, item in enumerate(response_merges["items"]):
         commits = []
         commits_with_files_dict = {}
 
@@ -135,4 +138,11 @@ async def get_github_repo(
 
         item["commits"] = commits
 
-    return model.GitHubRepo(**response_repo)
+    topics = response_repo["topics"]
+
+    if len(topics) == 0:
+        topics = response_repo["source"]["topics"]
+
+    return model.GitHubRepo(
+        **response_merges, language=response_repo["language"], topics=topics
+    )

@@ -55,4 +55,6 @@ class Item(BaseModel):
 class GitHubRepo(BaseModel):
     total_count: int
     incomplete_results: bool
+    language: str
+    topics: List[str]
     items: List[Item]
