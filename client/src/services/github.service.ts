@@ -73,20 +73,9 @@ export const getContributors = async (
   startDate?: string,
   endDate?: string,
 ): Promise<Contributor[]> => {
-  let data;
-
-  try {
-    const response = await githubClient.get<Contributor[]>(
-      `/github/repo/${owner}/${repo}/contributors`,
-    );
-    data = response.data;
-  } catch (error) {
-    console.warn('Ошибка при запросе к основному эндпоинту, пробуем резервный');
-    const response = await githubClient.get<Contributor[]>(
-      `https://api.github.com/repos/${owner}/${repo}/contributors`,
-    );
-    data = response.data;
-  }
+  const { data } = await githubClient.get<Contributor[]>(
+    `https://api.github.com/repos/${owner}/${repo}/contributors`,
+  );
 
   // Получаем количество мерджей для всех пользователей
   const mergeCountMap = await getMergedPullRequests(
