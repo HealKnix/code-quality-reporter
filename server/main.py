@@ -205,18 +205,19 @@ async def get_github_repo_contributors(
 
     try:
         if contributor_login_filter:
-            return contributors[contributor_login_filter]
+            return [
+                contributor
+                for contributor in contributors
+                if str(contributor["login"]).lower() == contributor_login_filter.lower()
+            ][0]
 
         if contributor_email_filter:
-            for repo_contributor_login in contributors.values():
-                print(repo_contributor_login["login"])
             return [
-                repo_contributor
-                for repo_contributor in contributors.values()
-                if str(repo_contributor["email"]).lower()
-                == contributor_email_filter.lower()
+                contributor
+                for contributor in contributors
+                if str(contributor["email"]).lower() == contributor_email_filter.lower()
             ][0]
-    except Exception as e:
+    except Exception:
         return {}
 
     return contributors
@@ -249,7 +250,7 @@ async def get_github_repo(
                 for contributor in contributor_details
                 if str(contributor["email"]).lower() == contributor_email_filter.lower()
             ][0]
-    except Exception as e:
+    except Exception:
         contributor_login_filter = ""
 
     # Получение информации о репозитории
