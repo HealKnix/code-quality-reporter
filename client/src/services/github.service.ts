@@ -19,8 +19,6 @@ githubClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  console.log(config);
-
   return config;
 });
 
@@ -66,10 +64,14 @@ export const getRepository = async (owner: string, repo: string) => {
  * Fetches contributors from a repository
  * @param owner Repository owner
  * @param repo Repository name
+ * @param startDate Optional start date for filtering merge count
+ * @param endDate Optional end date for filtering merge count
  */
 export const getContributors = async (
   owner: string,
   repo: string,
+  startDate?: string,
+  endDate?: string,
 ): Promise<Contributor[]> => {
   let data;
 
@@ -87,7 +89,12 @@ export const getContributors = async (
   }
 
   // Получаем количество мерджей для всех пользователей
-  const mergeCountMap = await getMergedPullRequests(owner, repo);
+  const mergeCountMap = await getMergedPullRequests(
+    owner,
+    repo,
+    startDate,
+    endDate,
+  );
 
   const contributors = data.map((contributor) => {
     return {

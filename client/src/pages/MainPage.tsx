@@ -4,7 +4,6 @@ import { Loader2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { DateRange } from 'react-day-picker';
 import CodeReviewResults from '@/components/CodeReview/CodeReviewResults';
-import DateRangePicker from '@/components/CodeReview/DateRangePicker';
 import ContributorsList from '@/components/Contributors/ContributorsList';
 import Header from '@/components/Layout/Header';
 import RepositoryInput from '@/components/Repository/RepositoryInput';
@@ -41,8 +40,16 @@ const MainPage: React.FC = () => {
   const repo = repoInfo?.repo || '';
   const hasRepoInfo = !!owner && !!repo;
 
+  // Форматирование даты для API
+  const startDate = dateRange?.from
+    ? dateRange.from.toISOString().split('T')[0]
+    : undefined;
+  const endDate = dateRange?.to
+    ? dateRange.to.toISOString().split('T')[0]
+    : undefined;
+
   const { data: contributors = [], isLoading: isLoadingContributors } =
-    useContributors(owner, repo);
+    useContributors(owner, repo, startDate, endDate);
 
   const codeReviewMutation = useCodeReviews({
     onSuccess: (data) => {
@@ -217,57 +224,29 @@ const MainPage: React.FC = () => {
                 <ContributorsList
                   contributors={contributors}
                   onContributorSelect={handleContributorSelect}
+                  dateRange={dateRange}
+                  setDateRange={setDateRange}
+                  minDate={
+                    new Date(
+                      repoInfo?.repoData.created_at ?? new Date('2000-01-01'),
+                    )
+                  }
+                  maxDate={new Date()}
+                  onGenerateReview={handleGenerateReview}
+                  isPending={codeReviewMutation.isPending}
+                  selectedContributorsCount={selectedContributors.length}
                 />
               </div>
 
-              <DateRangePicker
-                min={
-                  new Date(
-                    repoInfo?.repoData.created_at ?? new Date('2000-01-01'),
-                  )
-                }
-                max={new Date()}
-                onDateRangeChange={(startDate, endDate) => {
-                  if (startDate && endDate) {
-                    setDateRange({
-                      from: new Date(startDate),
-                      to: new Date(endDate),
-                    });
-                  }
-                }}
-              />
-
-              <div className="mb-6">
-                <Button
-                  onClick={handleGenerateReview}
-                  disabled={
-                    selectedContributors.length === 0 ||
-                    !dateRange?.from ||
-                    !dateRange?.to ||
-                    codeReviewMutation.isPending
-                  }
-                  className="w-full md:w-auto"
-                >
-                  {codeReviewMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Анализирую...
-                    </>
-                  ) : (
-                    'Закод-ревьюить'
-                  )}
-                </Button>
-              </div>
+              {codeReviews.length > 0 && !codeReviewMutation.isPending && (
+                <div ref={resultsRef}>
+                  <CodeReviewResults
+                    reviews={codeReviews}
+                    dateRangeFormatted={formatDateRange(dateRange)}
+                  />
+                </div>
+              )}
             </>
-          )}
-
-          {codeReviews.length > 0 && !codeReviewMutation.isPending && (
-            <div ref={resultsRef}>
-              <CodeReviewResults
-                reviews={codeReviews}
-                dateRangeFormatted={formatDateRange(dateRange)}
-              />
-            </div>
           )}
         </>
       )}

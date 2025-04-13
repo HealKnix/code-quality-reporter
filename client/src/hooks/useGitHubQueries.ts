@@ -67,12 +67,14 @@ export const useRepositoryInfo = (
 export const useContributors = (
   owner: string,
   repo: string,
+  startDate?: string,
+  endDate?: string,
   options?: Omit<
     UseQueryOptions<
       Contributor[],
       Error,
       Contributor[],
-      [string, string, string]
+      [string, string, string, string | undefined, string | undefined]
     >,
     'queryKey' | 'queryFn' | 'enabled'
   >,
@@ -81,10 +83,10 @@ export const useContributors = (
     Contributor[],
     Error,
     Contributor[],
-    [string, string, string]
+    [string, string, string, string | undefined, string | undefined]
   >({
-    queryKey: ['contributors', owner, repo],
-    queryFn: () => getContributors(owner, repo),
+    queryKey: ['contributors', owner, repo, startDate, endDate],
+    queryFn: () => getContributors(owner, repo, startDate, endDate),
     enabled: !!owner && !!repo,
     ...options,
   });
