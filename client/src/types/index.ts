@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 export interface Contributor {
   id: number;
   login: string;
-  avatar: string;
+  avatar_url: string;
   name: string;
   email: string;
   mergeCount: number;

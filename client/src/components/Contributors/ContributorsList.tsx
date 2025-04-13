@@ -108,7 +108,7 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
                       <TableCell>
                         <Avatar>
                           <AvatarImage
-                            src={contributor.avatar}
+                            src={contributor.avatar_url}
                             alt={contributor.name}
                           />
                           <AvatarFallback>

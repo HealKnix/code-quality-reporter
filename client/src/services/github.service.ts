@@ -2,22 +2,26 @@ import axios from 'axios';
 import { CodeReview, Contributor } from '@/types';
 
 // GitHub API base URL
-const API_URL = 'https://api.github.com';
-
-// Get GitHub token from environment variables
-const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN;
+const API_URL = process.env.REACT_APP_API_BASE_URL;
 
 // Create an axios instance with common settings
 const githubClient = axios.create({
   baseURL: API_URL,
   headers: {
     Accept: 'application/vnd.github+json',
-    // Try to get token from environment variables first
-    ...(GITHUB_TOKEN && {
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
-      'X-GitHub-Api-Version': `2022-11-28`,
-    }),
+    'X-GitHub-Api-Version': '2022-11-28',
   },
+});
+
+// Добавляем интерцептор запросов для динамического обновления токена
+githubClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('githubToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  console.log(config);
+
+  return config;
 });
 
 // Add response interceptor to handle GitHub API rate limit errors
@@ -51,8 +55,11 @@ githubClient.interceptors.response.use(
  * @param repo Repository name
  */
 export const getRepository = async (owner: string, repo: string) => {
-  const response = await githubClient.get(`/repos/${owner}/${repo}`);
-  return response.data;
+  const { data } = await githubClient.get(
+    `https://api.github.com/repos/${owner}/${repo}`,
+  );
+
+  return data;
 };
 
 /**
@@ -64,41 +71,46 @@ export const getContributors = async (
   owner: string,
   repo: string,
 ): Promise<Contributor[]> => {
-  const response = await githubClient.get(
-    `/repos/${owner}/${repo}/contributors`,
-  );
+  let data;
 
-  // Map the GitHub API response to our Contributor model
-  const contributors = await Promise.all(
-    response.data.map(async (contributor: any) => {
-      // Get additional user details for name and email
-      const userDetails = await getUserDetails(contributor.login);
-
-      return {
-        id: contributor.id,
-        login: contributor.login, // Сохраняем логин для последующих запросов
-        avatar: contributor.avatar_url,
-        name: userDetails.name || contributor.login,
-        email: userDetails.email || 'Нет данных',
-        mergeCount: 0, // Изначально ставим 0, потом заполним
-        selected: false,
-      };
-    }),
-  );
+  try {
+    const response = await githubClient.get<Contributor[]>(
+      `/github/repo/${owner}/${repo}/contributors`,
+    );
+    data = response.data;
+  } catch (error) {
+    console.warn('Ошибка при запросе к основному эндпоинту, пробуем резервный');
+    const response = await githubClient.get<Contributor[]>(
+      `https://api.github.com/repos/${owner}/${repo}/contributors`,
+    );
+    data = response.data;
+  }
 
   // Получаем количество мерджей для всех пользователей
   const mergeCountMap = await getMergedPullRequests(owner, repo);
 
+  const contributors = data.map((contributor) => {
+    return {
+      ...contributor,
+      email: contributor.email || 'Нет данных',
+      name: contributor.name || contributor.login,
+      mergeCount: 0, // Изначально ставим 0, потом заполним
+      selected: false,
+    };
+  });
+
   // Обновляем каждого контрибьютера с количеством мерджей
-  return contributors.map((contributor) => {
-    const login = contributor.login;
-    const mergeCount = mergeCountMap.get(login) || 0;
+  const res = contributors.map((contributor: Contributor) => {
+    const id = contributor.id;
+    const mergeCount = mergeCountMap.get(id) || 0;
 
     return {
       ...contributor,
       mergeCount,
     };
   });
+
+  return res;
 };
 
 /**
@@ -113,9 +125,9 @@ export const getMergedPullRequests = async (
   repo: string,
   startDate?: string,
   endDate?: string,
-): Promise<Map<string, number>> => {
+): Promise<Map<number, number>> => {
   // Создаем Map для хранения количества мерджей для каждого пользователя
-  const mergeCountMap = new Map<string, number>();
+  const mergeCountMap = new Map<number, number>();
 
   let dateFilter = '';
   if (startDate && endDate) {
@@ -123,15 +135,15 @@ export const getMergedPullRequests = async (
   }
 
   // Получаем все смерженные PR для репозитория с фильтром по датам
-  const response = await githubClient.get(
-    `/search/issues?q=repo:${owner}/${repo}+is:pr+is:merged${dateFilter}&per_page=100`,
+  const { data } = await githubClient.get(
+    `https://api.github.com/search/issues?q=repo:${owner}/${repo}+is:pr+is:merged${dateFilter}&per_page=100`,
   );
 
-  if (response.data && response.data.items) {
+  if (data && data.items) {
     // Для каждого PR получаем информацию о пользователе и увеличиваем счетчик
-    for (const pr of response.data.items) {
-      const userLogin = pr.user.login;
-      mergeCountMap.set(userLogin, (mergeCountMap.get(userLogin) || 0) + 1);
+    for (const pr of data.items) {
+      const userId = pr.user.id;
+      mergeCountMap.set(userId, (mergeCountMap.get(userId) || 0) + 1);
     }
   }
 
@@ -166,11 +178,11 @@ export const getContributorPullRequests = async (
   const dateFilter = `created:${startDate}..${endDate}`;
 
   // Fetch merged PRs by the contributor
-  const response = await githubClient.get(
-    `/search/issues?q=repo:${owner}/${repo}+author:${contributor}+is:pr+is:merged+${dateFilter}`,
+  const { data } = await githubClient.get(
+    `https://api.github.com/search/issues?q=repo:${owner}/${repo}+author:${contributor}+is:pr+is:merged+${dateFilter}`,
   );
 
-  return response.data.items;
+  return data.items;
 };
 
 /**
@@ -206,11 +218,11 @@ export const analyzeCodeQuality = async (
     startDate,
     endDate,
   );
-  const mergeCount = mergeCountMap.get(contributor.login) || 0;
+  const mergeCount = mergeCountMap.get(contributor.id) || 0;
 
   return {
     id: contributor.id,
-    avatar: contributor.avatar,
+    avatar: contributor.avatar_url,
     name: contributor.name,
     email: contributor.email,
     mergeCount, // Используем реальное количество мерджей

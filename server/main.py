@@ -297,9 +297,9 @@ async def get_github_repo(
                 email=contributor_info.get("email"),
             )
 
-        raw_files = await github_service.get_row_files(
-            merged_prs, pr_commits, commit_details
-        )
+        # raw_files = await github_service.get_row_files(
+        #     merged_prs, pr_commits, commit_details
+        # )
 
         # Обогащаем данные о коммитах
         for pr_index, item in enumerate(merged_prs["items"]):
@@ -322,8 +322,8 @@ async def get_github_repo(
                             changes=file["changes"],
                             status=file["status"],
                             patch=file.get("patch", ""),
-                            raw=raw_files[pr_index][commit_index][file_index],
-                            # raw=file["raw_url"],
+                            # raw=raw_files[pr_index][commit_index][file_index],
+                            raw=file["raw_url"],
                         )
                     )
 

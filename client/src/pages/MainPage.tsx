@@ -48,7 +48,10 @@ const MainPage: React.FC = () => {
     onSuccess: (data) => {
       if (data.some((c) => c.mergeCount === 0)) {
         // Формируем список контрибьютеров без мерджей
-        const noMergesNames = data.map((c) => c.name).join(', ');
+        const noMergesNames = data
+          .filter((c) => c.mergeCount === 0)
+          .map((c) => c.name)
+          .join(', ');
 
         // Показываем toast с предупреждением
         toast({
@@ -183,13 +186,13 @@ const MainPage: React.FC = () => {
         error instanceof Error ? error.message : 'Произошла ошибка';
 
       if (error instanceof Error && error.message.includes('rate limit')) {
-        description = `${description}\nДостигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или добавить GitHub токен в файл .env (REACT_APP_GITHUB_TOKEN)`;
+        description = `${description}\nДостигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или вписать GitHub токен в поле "GitHub API Token"`;
       }
 
       toast({
         variant: 'destructive',
         title: 'Ошибка',
-        description: 'Проекта с таким названием не существует',
+        description: description,
       });
     }
   }, [error, toast]);
