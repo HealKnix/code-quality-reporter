@@ -15,7 +15,6 @@ interface DateRangePickerProps {
   className?: string;
   min?: Date;
   max?: Date;
-  defaultDateRange?: DateRange; // Начальный диапазон для сброса
 }
 
 export function DateRangePicker({
@@ -24,7 +23,6 @@ export function DateRangePicker({
   className,
   min,
   max,
-  defaultDateRange, // Начальный диапазон (от даты создания до текущей)
 }: DateRangePickerProps) {
   // Состояние для отслеживания открытия/закрытия попапа
   const [isOpen, setIsOpen] = useState(false);
@@ -68,9 +66,8 @@ export function DateRangePicker({
 
   // Обработчик сброса к начальному диапазону
   const handleReset = () => {
-    if (defaultDateRange) {
-      setCalendarSelection(defaultDateRange);
-    }
+    setCalendarSelection(undefined);
+    setDateRange(undefined);
   };
 
   // Обработчик применения выбранного диапазона
@@ -90,7 +87,7 @@ export function DateRangePicker({
             variant={'outline'}
             size={'sm'}
             className={cn(
-              'w-[280px] justify-start text-left font-normal text-sm',
+              'w-[250px] justify-start text-left font-normal text-sm',
               !dateRange && 'text-muted-foreground',
             )}
           >
@@ -109,25 +106,23 @@ export function DateRangePicker({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" align="end">
           <div className="p-3 border-b flex justify-between items-center">
             <span className="text-sm font-medium">Выберите период</span>
-            {defaultDateRange && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReset}
-                className="h-8"
-              >
-                Сбросить
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              className="h-8"
+            >
+              Сбросить
+            </Button>
           </div>
           <Calendar
             initialFocus
             locale={ru}
             mode="range"
-            defaultMonth={dateRange?.from || defaultDateRange?.from}
+            defaultMonth={dateRange?.from}
             selected={calendarSelection}
             onSelect={handleCalendarSelect}
             disabled={(date) => {

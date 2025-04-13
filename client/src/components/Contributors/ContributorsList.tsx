@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
-import { Contributor } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DateRange } from 'react-day-picker';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -15,8 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { RepositoryInfoReturn } from '@/hooks/useGitHubQueries';
+import { Contributor } from '@/types';
+import { Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { DateRange } from 'react-day-picker';
 
 // Компонент таблицы контрибьюторов
 interface ContributorsTableProps {
@@ -24,6 +25,7 @@ interface ContributorsTableProps {
   emailFilter: string;
   selectedContributors: Contributor[];
   onContributorToggle: (contributor: Contributor) => void;
+  isLoadingContributors: boolean;
 }
 
 const ContributorsTable = React.memo(
@@ -32,6 +34,7 @@ const ContributorsTable = React.memo(
     emailFilter,
     selectedContributors,
     onContributorToggle,
+    isLoadingContributors,
   }: ContributorsTableProps) => {
     const filteredContributors = emailFilter.trim()
       ? contributors.filter(
@@ -40,6 +43,10 @@ const ContributorsTable = React.memo(
             c.name.toLowerCase().includes(emailFilter.toLowerCase()),
         )
       : contributors;
+
+    const sortedContributors = filteredContributors.sort(
+      (a, b) => b.mergeCount - a.mergeCount,
+    );
 
     return (
       <div className="rounded-md border">
@@ -54,8 +61,8 @@ const ContributorsTable = React.memo(
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredContributors.length > 0 ? (
-              filteredContributors.map((contributor) => (
+            {sortedContributors.length > 0 ? (
+              sortedContributors.map((contributor) => (
                 <TableRow
                   key={contributor.id}
                   className={
@@ -96,9 +103,14 @@ const ContributorsTable = React.memo(
               <TableRow>
                 <TableCell
                   colSpan={5}
-                  className="text-center py-4 text-muted-foreground"
+                  className="text-center py-2 text-muted-foreground"
                 >
-                  Не найдено контрибьютеров по заданным критериям
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="mt-4 text-muted-foreground">
+                      Загружаем контрибьютеров
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -110,6 +122,7 @@ const ContributorsTable = React.memo(
 );
 
 interface ContributorsListProps {
+  repo: RepositoryInfoReturn;
   contributors: Contributor[];
   onContributorSelect: (selectedContributors: Contributor[]) => void;
   dateRange: DateRange | undefined;
@@ -118,10 +131,13 @@ interface ContributorsListProps {
   maxDate?: Date;
   onGenerateReview: () => void;
   isPending: boolean;
-  selectedContributorsCount: number;
+  isLoadingContributors: boolean;
+  selectedContributors: Contributor[];
+  setSelectedContributors: (selectedContributors: Contributor[]) => void;
 }
 
 const ContributorsList: React.FC<ContributorsListProps> = ({
+  repo,
   contributors,
   onContributorSelect,
   dateRange,
@@ -130,11 +146,10 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
   maxDate,
   onGenerateReview,
   isPending,
-  selectedContributorsCount,
+  isLoadingContributors,
+  selectedContributors,
+  setSelectedContributors,
 }) => {
-  const [selectedContributors, setSelectedContributors] = useState<
-    Contributor[]
-  >([]);
   const [emailFilter, setEmailFilter] = useState('');
 
   const handleContributorToggle = (contributor: Contributor) => {
@@ -155,12 +170,20 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
     onContributorSelect(updatedSelection);
   };
 
+  useEffect(() => {
+    if (isLoadingContributors) {
+      setSelectedContributors([]);
+    }
+  }, [isLoadingContributors]);
+
   return (
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between pb-2 flex-wrap">
-        <CardTitle className="text-xl">Контрибьютеры</CardTitle>
-        <div className="flex items-center gap-2">
-          <Label>Период мерджей</Label>
+        <CardTitle className="text-xl mb-4">
+          Контрибьютеры ({repo.repoData.name})
+        </CardTitle>
+        <div className="items-center gap-2">
+          <Label className="text-zinc-600">Период мерджей</Label>
           <DateRangePicker
             dateRange={dateRange}
             setDateRange={setDateRange}
@@ -171,7 +194,7 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-4 mt-2">
           <div className="grid gap-2">
             <Label htmlFor="emailFilter">Почта контрибьютера</Label>
             <Input
@@ -187,16 +210,12 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
             emailFilter={emailFilter}
             selectedContributors={selectedContributors}
             onContributorToggle={handleContributorToggle}
+            isLoadingContributors={isLoadingContributors}
           />
 
           <Button
             onClick={onGenerateReview}
-            disabled={
-              selectedContributorsCount === 0 ||
-              !dateRange?.from ||
-              !dateRange?.to ||
-              isPending
-            }
+            disabled={selectedContributors.length === 0 || isPending}
             className="w-full"
           >
             {isPending ? (

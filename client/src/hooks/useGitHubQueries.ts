@@ -13,7 +13,7 @@ import {
 import { CodeReview, Contributor, Repository } from '../types';
 
 // Define return type for repository info
-interface RepositoryInfoReturn {
+export interface RepositoryInfoReturn {
   repoData: Repository;
   owner: string;
   repo: string;

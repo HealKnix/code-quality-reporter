@@ -1,13 +1,7 @@
-import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import { Loader2 } from 'lucide-react';
-import React, { useRef, useState } from 'react';
-import { DateRange } from 'react-day-picker';
 import CodeReviewResults from '@/components/CodeReview/CodeReviewResults';
 import ContributorsList from '@/components/Contributors/ContributorsList';
 import Header from '@/components/Layout/Header';
 import RepositoryInput from '@/components/Repository/RepositoryInput';
-import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -15,6 +9,11 @@ import {
   useContributors,
   useRepositoryInfo,
 } from '@/hooks/useGitHubQueries';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { Loader2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { DateRange } from 'react-day-picker';
 import { CodeReview, Contributor } from '../types';
 
 const MainPage: React.FC = () => {
@@ -50,6 +49,12 @@ const MainPage: React.FC = () => {
 
   const { data: contributors = [], isLoading: isLoadingContributors } =
     useContributors(owner, repo, startDate, endDate);
+
+  useEffect(() => {
+    if (isLoadingContributors) {
+      setCodeReviews([]);
+    }
+  }, [isLoadingContributors]);
 
   const codeReviewMutation = useCodeReviews({
     onSuccess: (data) => {
@@ -93,6 +98,9 @@ const MainPage: React.FC = () => {
   });
 
   const handleRepositorySubmit = (inputRepoUrl: string) => {
+    setCodeReviews([]);
+    setSelectedContributors([]);
+    setDateRange(undefined);
     setRepoUrl(inputRepoUrl);
     // The useRepositoryInfo hook will automatically fetch data based on the URL
   };
@@ -127,17 +135,17 @@ const MainPage: React.FC = () => {
   };
 
   const handleGenerateReview = async () => {
-    if (
-      !repoInfo ||
-      selectedContributors.length === 0 ||
-      !dateRange?.from ||
-      !dateRange?.to
-    ) {
+    if (!repoInfo || selectedContributors.length === 0) {
       return;
     }
 
-    const startDate = dateRange.from.toISOString().split('T')[0];
-    const endDate = dateRange.to.toISOString().split('T')[0];
+    const startDate =
+      dateRange?.from?.toISOString().split('T')[0] ??
+      new Date(
+        repoInfo?.repoData.created_at ?? new Date('2000-01-01'),
+      ).toISOString();
+    const endDate =
+      dateRange?.to?.toISOString().split('T')[0] ?? new Date().toISOString();
 
     // Проверяем каждого выбранного контрибьютера
     const contributorsWithNoMerges = selectedContributors.filter(
@@ -211,17 +219,18 @@ const MainPage: React.FC = () => {
 
       <RepositoryInput onSubmit={handleRepositorySubmit} />
 
-      {isLoadingRepo || isLoadingContributors ? (
+      {isLoadingRepo ? (
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-muted-foreground">Загрузка данных...</p>
         </div>
       ) : (
         <>
-          {hasRepoInfo && contributors.length > 0 && !isLoadingContributors && (
+          {hasRepoInfo && repoInfo && (
             <>
               <div ref={contributorsRef}>
                 <ContributorsList
+                  repo={repoInfo}
                   contributors={contributors}
                   onContributorSelect={handleContributorSelect}
                   dateRange={dateRange}
@@ -233,8 +242,10 @@ const MainPage: React.FC = () => {
                   }
                   maxDate={new Date()}
                   onGenerateReview={handleGenerateReview}
+                  isLoadingContributors={isLoadingContributors}
                   isPending={codeReviewMutation.isPending}
-                  selectedContributorsCount={selectedContributors.length}
+                  selectedContributors={selectedContributors}
+                  setSelectedContributors={setSelectedContributors}
                 />
               </div>
 
