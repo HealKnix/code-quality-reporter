@@ -57,4 +57,6 @@ class GitHubRepo(BaseModel):
     incomplete_results: bool
     language: str
     topics: List[str]
+    contributor_name: str | None
+    contributor_email: str | None
     items: List[Item]

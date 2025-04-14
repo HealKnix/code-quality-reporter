@@ -95,6 +95,12 @@ async def get_github_repo(
     if date_filter != "":
         date_filter = f"+created:{date_filter}"
 
+    # Формирование фильтра по датам
+    if contributor_login_filter != "":
+        contributor_login_filter = contributor_login_filter.lower()
+    if contributor_email_filter != "":
+        contributor_email_filter = contributor_email_filter.lower()
+
     contributor_details = await github_service.get_repo_contributors(owner, repo)
 
     try:
@@ -102,7 +108,7 @@ async def get_github_repo(
             contributor_login_filter = [
                 str(contributor["login"]).lower()
                 for contributor in contributor_details
-                if str(contributor["email"]).lower() == contributor_email_filter.lower()
+                if str(contributor["email"]).lower() == contributor_email_filter
             ][0]
     except Exception:
         contributor_login_filter = ""
@@ -138,12 +144,13 @@ async def get_github_repo(
 
         # Преобразовываем список контрибьютеров в словарь логинов
         contributor_details = {
-            contributor["login"]: contributor for contributor in contributor_details
+            contributor["login"].lower(): contributor
+            for contributor in contributor_details
         }
 
         # Обогащаем данные пользователей
         for item in merged_prs["items"]:
-            contributor_login = item["user"]["login"]
+            contributor_login = str(item["user"]["login"]).lower()
             contributor_info = contributor_details.get(contributor_login, {})
             item["user"] = schemas.User(
                 **item["user"],
@@ -199,9 +206,27 @@ async def get_github_repo(
         if not topics and "source" in repo_info:
             topics = repo_info["source"].get("topics", [])
 
+        contributor_name = (
+            contributor_details.get(contributor_login_filter, {}).get("name")
+            if contributor_details.get(contributor_login_filter, {}).get("name")
+            else contributor_details.get(contributor_login_filter, {}).get("login")
+            if contributor_login_filter or contributor_email_filter
+            else None
+        )
+
+        contributor_email = (
+            contributor_details.get(contributor_login_filter, {}).get("email")
+            if contributor_login_filter or contributor_email_filter
+            else None
+        )
+
         # Формирование и возврат результата
         return schemas.GitHubRepo(
-            **merged_prs, language=repo_info.get("language"), topics=topics
+            **merged_prs,
+            language=repo_info.get("language"),
+            topics=topics,
+            contributor_name=contributor_name,
+            contributor_email=contributor_email,
         )
 
     except Exception as e:

@@ -55,28 +55,28 @@ class GitHubService:
         self,
         owner: str,
         repo: str,
-        contributors: List[str],
+        contributors_logins: List[str],
         date_filter: str = "",
     ) -> dict:
         """Получает список объединенных PR от указанного контрибьютора."""
         urls = []
-        for contributor in contributors:
+        for contributor in contributors_logins:
             author = f"+author:{contributor}" if contributor else ""
             query = f"repo:{owner}/{repo}{author}+is:pr+is:merged{date_filter}"
             urls.append(f"{self.GITHUB_API_URL}/search/issues?q={query}")
 
         results = await self.get_async(urls)
 
-        if len(contributors) > 1:
+        if len(contributors_logins) > 1:
             return [
                 {"login": contributor, "count": result["total_count"]}
-                for result, contributor in zip(results, contributors)
+                for result, contributor in zip(results, contributors_logins)
             ]
         else:
             return results[0]
 
     async def get_prs_commits(
-        self, owner: str, repo: str, contributor: str, pr_numbers: List[int]
+        self, owner: str, repo: str, contributor_login: str, pr_numbers: List[int]
     ) -> Dict[int, List[dict]]:
         """Получает коммиты для нескольких PR."""
         if not pr_numbers:
@@ -93,8 +93,8 @@ class GitHubService:
                 commit
                 for commit in commits
                 if (
-                    (str(commit["author"]["login"]).lower() == contributor.lower())
-                    if contributor
+                    (str(commit["author"]["login"]).lower() == contributor_login)
+                    if contributor_login
                     else True
                 )
             ]
