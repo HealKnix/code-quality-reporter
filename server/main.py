@@ -1,27 +1,11 @@
 import asyncio
-import os
 from typing import List, Dict, Any, Optional
 
 import aiohttp
 import schemas
 import uvicorn
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import date
-
-load_dotenv()
-
-# Константы и конфигурация
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-if not GITHUB_TOKEN:
-    raise ValueError("GITHUB_TOKEN не найден в переменных окружения")
-
-GITHUB_HEADERS = {
-    "Accept": "application/vnd.github.v3+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "Authorization": f"Bearer {GITHUB_TOKEN}",
-}
 
 GITHUB_API_URL = "https://api.github.com"
 
@@ -43,8 +27,18 @@ app.add_middleware(
 
 # Сервис для работы с GitHub API
 class GitHubService:
-    def __init__(self, headers: dict):
-        self.headers = headers
+    def __init__(self):
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+    def set_authorization_header(self, request: Request):
+        auth_header = request.headers.get("Authorization")
+        self.headers = {
+            **self.headers,
+            "Authorization": auth_header if auth_header else "",
+        }
 
     async def get_async(self, urls: List[str], text: bool = False) -> List[Any]:
         """Выполняет асинхронные GET запросы к списку URL."""
@@ -77,15 +71,30 @@ class GitHubService:
         return result if result else {}
 
     async def get_merged_prs(
-        self, owner: str, repo: str, contributor: str, date_filter: str = ""
+        self,
+        owner: str,
+        repo: str,
+        contributors: List[str],
+        date_filter: str = "",
     ) -> dict:
         """Получает список объединенных PR от указанного контрибьютора."""
-        author = f"+author:{contributor}" if contributor else ""
+        urls = []
+        for contributor in contributors:
+            author = f"+author:{contributor}" if contributor else ""
+            query = f"repo:{owner}/{repo}{author}+is:pr+is:merged{date_filter}"
+            urls.append(f"{GITHUB_API_URL}/search/issues?q={query}")
 
-        query = f"repo:{owner}/{repo}{author}+is:pr+is:merged{date_filter}"
-        url = f"{GITHUB_API_URL}/search/issues?q={query}"
-        results = await self.get_async([url])
-        return results[0] if results else {"items": []}
+        results = await self.get_async(urls)
+
+        print(results)
+
+        if len(contributors) > 1:
+            return [
+                {"login": contributor, "count": result["total_count"]}
+                for result, contributor in zip(results, contributors)
+            ]
+        else:
+            return results[0]
 
     async def get_prs_commits(
         self, owner: str, repo: str, contributor: str, pr_numbers: List[int]
@@ -188,19 +197,39 @@ class GitHubService:
         return result
 
 
-# Зависимость для внедрения GitHubService
-def get_github_service():
-    return GitHubService(GITHUB_HEADERS)
+@app.get("/github/repo/{owner}/{repo}/mergedcount")
+async def get_github_repo_merged_count(
+    request: Request,
+    owner: str,
+    repo: str,
+    date_filter: Optional[str] = Query(""),
+    github_service: GitHubService = Depends(GitHubService),
+):
+    github_service.set_authorization_header(request)
+
+    contributors = await github_service.get_repo_contributors(owner, repo)
+
+    merges = await github_service.get_merged_prs(
+        owner,
+        repo,
+        [contributor["login"] for contributor in contributors],
+        f"+created:{date_filter}" if date_filter else "",
+    )
+
+    return merges
 
 
 @app.get("/github/repo/{owner}/{repo}/contributors")
 async def get_github_repo_contributors(
+    request: Request,
     owner: str,
     repo: str,
     contributor_login_filter: Optional[str] = Query(""),
     contributor_email_filter: Optional[str] = Query(""),
-    github_service: GitHubService = Depends(get_github_service),
+    github_service: GitHubService = Depends(GitHubService),
 ):
+    github_service.set_authorization_header(request)
+
     contributors = await github_service.get_repo_contributors(owner, repo)
 
     try:
@@ -230,13 +259,16 @@ async def get_github_repo_contributors(
     description="Возвращает информацию о слитых PR от указанного контрибьютора в заданном диапазоне дат",
 )
 async def get_github_repo(
+    request: Request,
     owner: str,
     repo: str,
     contributor_login_filter: Optional[str] = Query(""),
     contributor_email_filter: Optional[str] = Query(""),
     date_filter: Optional[str] = Query(""),
-    github_service: GitHubService = Depends(get_github_service),
+    github_service: GitHubService = Depends(GitHubService),
 ):
+    github_service.set_authorization_header(request)
+
     # Формирование фильтра по датам
     if date_filter != "":
         date_filter = f"+created:{date_filter}"
@@ -259,7 +291,7 @@ async def get_github_repo(
         repo_info, merged_prs = await asyncio.gather(
             github_service.get_repo_info(owner, repo),
             github_service.get_merged_prs(
-                owner, repo, contributor_login_filter, date_filter
+                owner, repo, [contributor_login_filter], date_filter
             ),
         )
 
