@@ -179,14 +179,14 @@ const MainPage: React.FC = () => {
     }
 
     // Если у всех контрибьютеров есть мерджи, продолжаем с анализом
-    const contributorIds = selectedContributors
+    const contributorLogins = selectedContributors
       .filter((c) => c.mergeCount > 0)
-      .map((c) => c.id);
+      .map((c) => c.login);
 
     codeReviewMutation.mutate({
       owner: repoInfo.owner,
       repo: repoInfo.repo,
-      contributors: contributorIds,
+      contributors: contributorLogins,
       startDate,
       endDate,
     });

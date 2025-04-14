@@ -183,7 +183,7 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
           Контрибьютеры ({repo.repoData.name})
         </CardTitle>
         <div className="items-center gap-2">
-          <Label className="text-zinc-600">Период мерджей</Label>
+          <Label>Период мерджей</Label>
           <DateRangePicker
             dateRange={dateRange}
             setDateRange={setDateRange}

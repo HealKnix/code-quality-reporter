@@ -102,7 +102,7 @@ export function DateRangePicker({
                 format(dateRange.from, 'LLL dd, y', { locale: ru })
               )
             ) : (
-              <span>Выбрать период</span>
+              <span>За всё время</span>
             )}
           </Button>
         </PopoverTrigger>

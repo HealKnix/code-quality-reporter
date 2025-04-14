@@ -97,8 +97,8 @@ export const getContributors = async (
 
   // Обновляем каждого контрибьютера с количеством мерджей
   const res = contributors.map((contributor: Contributor) => {
-    const id = contributor.id;
-    const mergeCount = mergeCountMap.get(id) || 0;
+    const contributorLogin = contributor.login;
+    const mergeCount = mergeCountMap.get(contributorLogin) || 0;
 
     return {
       ...contributor,
@@ -121,9 +121,9 @@ export const getMergedPullRequests = async (
   repo: string,
   startDate?: string,
   endDate?: string,
-): Promise<Map<number, number>> => {
+): Promise<Map<string, number>> => {
   // Создаем Map для хранения количества мерджей для каждого пользователя
-  const mergeCountMap = new Map<number, number>();
+  const mergeCountMap = new Map<string, number>();
 
   let dateFilter = '';
   if (startDate && endDate) {
@@ -138,8 +138,8 @@ export const getMergedPullRequests = async (
   if (data && data.items) {
     // Для каждого PR получаем информацию о пользователе и увеличиваем счетчик
     for (const pr of data.items) {
-      const userId = pr.user.id;
-      mergeCountMap.set(userId, (mergeCountMap.get(userId) || 0) + 1);
+      const userLogin = pr.user.login;
+      mergeCountMap.set(userLogin, (mergeCountMap.get(userLogin) || 0) + 1);
     }
   }
 
@@ -188,7 +188,7 @@ export const getContributorPullRequests = async (
 export const analyzeCodeQuality = async (
   owner: string,
   repo: string,
-  contributorId: number,
+  contributorLogin: string,
   startDate: string,
   endDate: string,
 ): Promise<CodeReview> => {
@@ -200,11 +200,11 @@ export const analyzeCodeQuality = async (
 
   // Find the contributor by id to get their details
   const contributors = await getContributors(owner, repo);
-  const contributor = contributors.find((c) => c.id === contributorId);
+  const contributor = contributors.find((c) => c.login === contributorLogin);
 
   // If no contributor found with this id, return an error
   if (!contributor) {
-    throw new Error(`Contributor with id ${contributorId} not found`);
+    throw new Error(`Contributor with login ${contributorLogin} not found`);
   }
 
   // Get actual merge count for this contributor
@@ -214,7 +214,7 @@ export const analyzeCodeQuality = async (
     startDate,
     endDate,
   );
-  const mergeCount = mergeCountMap.get(contributor.id) || 0;
+  const mergeCount = mergeCountMap.get(contributor.login) || 0;
 
   return {
     id: contributor.id,
@@ -244,13 +244,13 @@ export const analyzeCodeQuality = async (
 export const performCodeReviews = async (
   owner: string,
   repo: string,
-  contributors: number[],
+  contributors: string[],
   startDate: string,
   endDate: string,
 ): Promise<CodeReview[]> => {
   const reviews = await Promise.all(
-    contributors.map((id) =>
-      analyzeCodeQuality(owner, repo, id, startDate, endDate),
+    contributors.map((login) =>
+      analyzeCodeQuality(owner, repo, login, startDate, endDate),
     ),
   );
 

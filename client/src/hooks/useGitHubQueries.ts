@@ -96,7 +96,7 @@ export const useContributors = (
 interface CodeReviewParams {
   owner: string;
   repo: string;
-  contributors: number[];
+  contributors: string[];
   startDate: string;
   endDate: string;
 }
