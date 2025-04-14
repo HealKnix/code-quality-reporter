@@ -131,7 +131,7 @@ class GitHubService:
         contributors = [
             {
                 **contributor,
-                "login": str(contributor["login"]).lower(),
+                "login": contributor["login"],
                 "email": contributors_email[contributor_login],
             }
             for contributor, contributor_login in zip(contributors, contributors_email)

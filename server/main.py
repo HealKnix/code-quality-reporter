@@ -143,7 +143,7 @@ async def get_github_repo(
 
         # Обогащаем данные пользователей
         for item in merged_prs["items"]:
-            contributor_login = str(item["user"]["login"]).lower()
+            contributor_login = item["user"]["login"]
             contributor_info = contributor_details.get(contributor_login, {})
             item["user"] = schemas.User(
                 **item["user"],
