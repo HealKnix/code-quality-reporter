@@ -5,9 +5,11 @@ import RepositoryInput from '@/components/Repository/RepositoryInput';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/use-toast';
 import {
+  TaskStatusResponse,
   useCodeReviews,
   useContributors,
   useRepositoryInfo,
+  useTaskStatus,
 } from '@/hooks/useGitHubQueries';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -23,6 +25,9 @@ const MainPage: React.FC = () => {
   >([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [codeReviews, setCodeReviews] = useState<CodeReview[]>([]);
+  const [email, setEmail] = useState('');
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [isReportGenerating, setIsReportGenerating] = useState(false);
   const { toast } = useToast();
   const contributorsRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -56,11 +61,91 @@ const MainPage: React.FC = () => {
     }
   }, [isLoadingContributors]);
 
+  // Task status polling for async report generation
+  const { data: taskStatus } = useTaskStatus(taskId || '', isReportGenerating);
+
+  // Handle task status changes
+  useEffect(() => {
+    if (taskStatus?.status === 'completed' && taskStatus.result) {
+      setIsReportGenerating(false);
+
+      toast({
+        title: 'Отчет готов!',
+        description:
+          'Отчет был успешно сгенерирован и отправлен на указанную почту.',
+      });
+
+      if (Array.isArray(taskStatus.result.items)) {
+        // Convert the result to CodeReview array format if needed
+        setCodeReviews([
+          {
+            id: 0,
+            avatar: selectedContributors[0]?.avatar_url || '',
+            name:
+              taskStatus.result.contributor_name ||
+              selectedContributors[0]?.name ||
+              '',
+            email: taskStatus.result.contributor_email || email,
+            mergeCount: taskStatus.result.total_count || 0,
+            rating: 8, // Default rating
+            status: 'Хорошо',
+            details: {
+              codeStyle: 8,
+              bugFixes: 8,
+              performance: 8,
+              security: 8,
+            },
+          },
+        ]);
+        scrollToResults();
+      }
+    } else if (taskStatus?.status === 'failed') {
+      setIsReportGenerating(false);
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: `Не удалось сгенерировать отчет: ${taskStatus.error || 'Неизвестная ошибка'}`,
+      });
+    } else if (taskStatus?.status === 'completed-email-failed') {
+      setIsReportGenerating(false);
+      toast({
+        variant: 'warning',
+        title: 'Отчет готов, но не отправлен',
+        description:
+          'Отчет был успешно сгенерирован, но не удалось отправить его на почту. Проверьте настройки сервера.',
+      });
+    } else if (taskStatus?.status === 'completed-no-email') {
+      setIsReportGenerating(false);
+      toast({
+        variant: 'warning',
+        title: 'Отчет готов, но не отправлен',
+        description:
+          'Отчет был успешно сгенерирован, но на сервере не настроена отправка электронных писем.',
+      });
+    }
+  }, [taskStatus, toast, email, selectedContributors]);
+
   const codeReviewMutation = useCodeReviews({
     onSuccess: (data) => {
-      if (data.some((c) => c.mergeCount === 0)) {
+      // Handle task ID response (async mode)
+      if (!Array.isArray(data) && 'task_id' in data) {
+        setTaskId(data.task_id);
+        setIsReportGenerating(true);
+
+        toast({
+          title: 'Отчет генерируется',
+          description:
+            'Отчет будет отправлен на указанную почту после завершения генерации.',
+        });
+        return;
+      }
+
+      // Handle array response (sync mode)
+      const reviews = data as CodeReview[];
+
+      if (reviews.some((c) => c.mergeCount === 0)) {
         // Формируем список контрибьютеров без мерджей
-        const noMergesNames = data
+        const noMergesNames = reviews
           .filter((c) => c.mergeCount === 0)
           .map((c) => c.name)
           .join(', ');
@@ -79,7 +164,7 @@ const MainPage: React.FC = () => {
         });
       }
       setCodeReviews(
-        data
+        reviews
           .filter((c) => c.mergeCount > 0)
           .sort((a, b) => b.rating - a.rating),
       );
@@ -139,6 +224,16 @@ const MainPage: React.FC = () => {
       return;
     }
 
+    // Validate email if provided
+    if (email && !validateEmail(email)) {
+      toast({
+        variant: 'destructive',
+        title: 'Неверный формат',
+        description: 'Пожалуйста, введите корректный адрес электронной почты.',
+      });
+      return;
+    }
+
     const startDate =
       dateRange?.from?.toISOString().split('T')[0] ??
       new Date(
@@ -189,6 +284,7 @@ const MainPage: React.FC = () => {
       contributors: contributorLogins,
       startDate,
       endDate,
+      email: email || undefined, // Only pass email if provided
     });
   };
 
@@ -246,6 +342,9 @@ const MainPage: React.FC = () => {
                   isPending={codeReviewMutation.isPending}
                   selectedContributors={selectedContributors}
                   setSelectedContributors={setSelectedContributors}
+                  email={email}
+                  setEmail={setEmail}
+                  isReportGenerating={isReportGenerating}
                 />
               </div>
 
@@ -263,6 +362,12 @@ const MainPage: React.FC = () => {
       )}
     </div>
   );
+};
+
+// Simple email validation function
+const validateEmail = (email: string): boolean => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
 };
 
 export default MainPage;

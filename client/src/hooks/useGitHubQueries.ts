@@ -5,6 +5,7 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query';
 import {
+  checkReportStatus,
   getContributors,
   getRepository,
   parseRepositoryUrl,
@@ -99,6 +100,15 @@ interface CodeReviewParams {
   contributors: string[];
   startDate: string;
   endDate: string;
+  email?: string;
+}
+
+// Define task status response type
+export interface TaskStatusResponse {
+  task_id: string;
+  status: string;
+  result?: any;
+  error?: string;
 }
 
 /**
@@ -106,19 +116,32 @@ interface CodeReviewParams {
  */
 export const useCodeReviews = (
   options?: Omit<
-    UseMutationOptions<CodeReview[], Error, CodeReviewParams>,
+    UseMutationOptions<CodeReview[] | TaskStatusResponse, Error, CodeReviewParams>,
     'mutationFn'
   >,
 ) => {
-  return useMutation<CodeReview[], Error, CodeReviewParams>({
+  return useMutation<CodeReview[] | TaskStatusResponse, Error, CodeReviewParams>({
     mutationFn: ({
       owner,
       repo,
       contributors,
       startDate,
       endDate,
+      email,
     }: CodeReviewParams) =>
-      performCodeReviews(owner, repo, contributors, startDate, endDate),
+      performCodeReviews(owner, repo, contributors, startDate, endDate, email),
     ...options,
+  });
+};
+
+/**
+ * Hook for checking report task status
+ */
+export const useTaskStatus = (taskId: string, enabled: boolean = false) => {
+  return useQuery<TaskStatusResponse, Error, TaskStatusResponse, [string, string]>({
+    queryKey: ['taskStatus', taskId],
+    queryFn: () => checkReportStatus(taskId),
+    enabled: enabled && !!taskId,
+    refetchInterval: enabled && !!taskId ? 3000 : false, // Poll every 3 seconds if enabled
   });
 };

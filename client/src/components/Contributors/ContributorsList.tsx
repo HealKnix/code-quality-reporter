@@ -134,6 +134,9 @@ interface ContributorsListProps {
   isLoadingContributors: boolean;
   selectedContributors: Contributor[];
   setSelectedContributors: (selectedContributors: Contributor[]) => void;
+  email?: string;
+  setEmail?: (email: string) => void;
+  isReportGenerating?: boolean;
 }
 
 const ContributorsList: React.FC<ContributorsListProps> = ({
@@ -149,6 +152,9 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
   isLoadingContributors,
   selectedContributors,
   setSelectedContributors,
+  email = '',
+  setEmail,
+  isReportGenerating = false,
 }) => {
   const [emailFilter, setEmailFilter] = useState('');
 
@@ -201,9 +207,28 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
               id="emailFilter"
               value={emailFilter}
               onChange={(e) => setEmailFilter(e.target.value)}
-              placeholder="Введите почту..."
+              placeholder="Введите почту для поиска..."
             />
           </div>
+          
+          {setEmail && (
+            <div className="grid gap-2">
+              <Label htmlFor="emailNotification" className="flex items-center gap-2">
+                <span>Почта для получения отчёта</span>
+                <span className="text-sm text-muted-foreground">(опционально)</span>
+              </Label>
+              <Input
+                id="emailNotification"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@mail.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Если указана почта, отчёт будет сгенерирован асинхронно и отправлен на указанный адрес.
+              </p>
+            </div>
+          )}
 
           <ContributorsTable
             contributors={contributors}
@@ -215,13 +240,18 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
 
           <Button
             onClick={onGenerateReview}
-            disabled={selectedContributors.length === 0 || isPending}
+            disabled={selectedContributors.length === 0 || isPending || isReportGenerating}
             className="w-full"
           >
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Анализирую...
+              </>
+            ) : isReportGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Генерирую отчёт...
               </>
             ) : (
               'Закод-ревьюить'

@@ -74,7 +74,7 @@ export const getContributors = async (
   endDate?: string,
 ): Promise<Contributor[]> => {
   const { data } = await githubClient.get<Contributor[]>(
-    `https://api.github.com/repos/${owner}/${repo}/contributors`,
+    `/api/github/repo/malinatrash/projfair-client/contributors`,
   );
 
   // Получаем количество мерджей для всех пользователей
@@ -240,6 +240,7 @@ export const analyzeCodeQuality = async (
  * @param contributors List of contributor emails
  * @param startDate Start date in ISO format
  * @param endDate End date in ISO format
+ * @param email Optional email for sending the report (async mode)
  */
 export const performCodeReviews = async (
   owner: string,
@@ -247,20 +248,42 @@ export const performCodeReviews = async (
   contributors: string[],
   startDate: string,
   endDate: string,
-): Promise<CodeReview[]> => {
-  const reviews = await Promise.all(
-    contributors.map((login) =>
-      analyzeCodeQuality(owner, repo, login, startDate, endDate),
-    ),
-  );
+  email?: string,
+): Promise<CodeReview[] | { task_id: string; status: string }> => {
+  // If email is provided, use the async API endpoint
+  if (email) {
+    // Prepare contributor login filter (we'll use the first one for now)
+    const contributor_login_filter =
+      contributors.length > 0 ? contributors[0] : '';
 
-  return reviews;
+    // Call the async endpoint
+    const { data } = await githubClient.post(
+      `/api/github/repo/merged/${owner}/${repo}/async?contributor_login_filter=${contributor_login_filter}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
+      { email },
+    );
+
+    return data;
+  } else {
+    // Use the existing synchronous approach for backward compatibility
+    const reviews = await Promise.all(
+      contributors.map((login) =>
+        analyzeCodeQuality(owner, repo, login, startDate, endDate),
+      ),
+    );
+
+    return reviews;
+  }
 };
 
 /**
- * Parses a repository URL to extract owner and repo name
- * @param repoUrl Repository URL
+ * Checks the status of an asynchronous report generation task
+ * @param taskId The task ID to check
  */
+export const checkReportStatus = async (taskId: string) => {
+  const { data } = await githubClient.get(`/api/task/${taskId}`);
+  return data;
+};
+
 export const parseRepositoryUrl = (
   repoUrl: string,
 ): { owner: string; repo: string } | null => {
