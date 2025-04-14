@@ -67,8 +67,6 @@ class GitHubService:
 
         results = await self.get_async(urls)
 
-        print(results)
-
         if len(contributors) > 1:
             return [
                 {"login": contributor, "count": result["total_count"]}

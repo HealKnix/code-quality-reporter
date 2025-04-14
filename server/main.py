@@ -4,26 +4,17 @@ from typing import Optional
 import schemas
 import services
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(
-    title="GitHub Code Quality Reporter API",
-    description="API для анализа PR и коммитов в GitHub репозиториях",
-    version="1.0.0",
+router = APIRouter()
+
+
+@router.get(
+    "/github/repo/{owner}/{repo}/mergedcount",
+    summary="Получить список контрибьютеров с количеством мерджей в репозитории",
+    tags=["GitHub"],
 )
-
-# CORS конфигурация
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/github/repo/{owner}/{repo}/mergedcount")
 async def get_github_repo_merged_count(
     request: Request,
     owner: str,
@@ -45,7 +36,11 @@ async def get_github_repo_merged_count(
     return merges
 
 
-@app.get("/github/repo/{owner}/{repo}/contributors")
+@router.get(
+    "/github/repo/{owner}/{repo}/contributors",
+    summary="Получить информацию о всех контрибьютерах в репозитории",
+    tags=["GitHub"],
+)
 async def get_github_repo_contributors(
     request: Request,
     owner: str,
@@ -78,11 +73,12 @@ async def get_github_repo_contributors(
     return contributors
 
 
-@app.get(
+@router.get(
     "/github/repo/merged/{owner}/{repo}",
     response_model=schemas.GitHubRepo,
     summary="Получить информацию о слитых PR в репозитории",
     description="Возвращает информацию о слитых PR от указанного контрибьютора в заданном диапазоне дат",
+    tags=["GitHub"],
 )
 async def get_github_repo(
     request: Request,
@@ -213,6 +209,23 @@ async def get_github_repo(
             status_code=500, detail=f"Ошибка при получении данных из GitHub: {str(e)}"
         )
 
+
+app = FastAPI(
+    title="GitHub Code Quality Reporter API",
+    description="API для анализа PR и коммитов в GitHub репозиториях",
+    version="1.0.0",
+)
+
+# CORS конфигурация
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(router, prefix="/api")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="localhost", port=8000, reload=True)
