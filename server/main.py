@@ -1,7 +1,10 @@
 import asyncio
 import os
 import uuid
+import shutil
 from typing import Dict, Optional
+from pathlib import Path
+from datetime import datetime
 
 import schemas
 import services
@@ -16,6 +19,8 @@ from fastapi import (
     Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 import smtplib
 from email.mime.text import MIMEText
@@ -23,6 +28,73 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Create reports directory if it doesn't exist
+REPORTS_DIR = Path("reports")
+REPORTS_DIR.mkdir(exist_ok=True)
+
+# Store report file paths for each generated report
+report_files = {}
+
+
+# Function to sanitize filename to be compatible with Windows file system
+def sanitize_filename(filename):
+    # Windows doesn't allow these characters in filenames: \ / : * ? " < > |
+    invalid_chars = ["\\", "/", ":", "*", "?", '"', "<", ">", "|"]
+    for char in invalid_chars:
+        filename = filename.replace(char, "_")
+    return filename
+
+
+# Function to sanitize date string for filename
+def sanitize_date_for_filename(date_str):
+    if not date_str:
+        return ""
+    # Replace colons, periods and other invalid characters with underscores
+    return sanitize_filename(date_str)
+
+
+# Function to generate a report file and return its path
+async def create_report_file(
+    owner: str,
+    repo: str,
+    contributor_login: str,
+    start_date: str = None,
+    end_date: str = None,
+):
+    # Create folder structure for reports if it doesn't exist
+    repo_dir = REPORTS_DIR / owner / repo
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sanitize dates for filename
+    safe_start_date = sanitize_date_for_filename(start_date)
+    safe_end_date = sanitize_date_for_filename(end_date)
+
+    # Generate a filename with date range if provided
+    date_part = ""
+    if safe_start_date and safe_end_date:
+        date_part = f"_{safe_start_date}_to_{safe_end_date}"
+    elif safe_start_date:
+        date_part = f"_from_{safe_start_date}"
+    elif safe_end_date:
+        date_part = f"_to_{safe_end_date}"
+
+    # Create a timestamped filename to avoid overwriting
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{contributor_login}{date_part}_{timestamp}.pdf"
+    file_path = repo_dir / filename
+
+    # Generate a simple PDF report (in a real app, you'd use a PDF library)
+    # For now, we'll create a dummy PDF file
+    with open(file_path, "w") as f:
+        f.write(f"Report for {contributor_login} in {owner}/{repo}\n")
+        f.write(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        if start_date or end_date:
+            f.write(f"Date range: {start_date or 'beginning'} to {end_date or 'now'}\n")
+
+    # Return the file path
+    return file_path, filename
+
 
 router = APIRouter()
 
@@ -62,13 +134,20 @@ async def get_github_repo_merged_count(
     return merges
 
 
-async def send_email_report(email: str, report_data: dict, task_id: str):
+async def send_email_report(
+    email: str,
+    report_data: dict,
+    task_id: str,
+    owner: str = None,
+    repo: str = None,
+    contributor_login: str = None,
+):
     """Send email with report"""
     try:
         sender_email = os.getenv("EMAIL_SENDER")
-        password = os.getenv("EMAIL_PASSWORD")
-        smtp_server = "smtp.gmail.com"
-        smtp_port = 587  # Note: This should be an integer, not a string
+        password = os.getenv("SMTP_PASSWORD")
+        smtp_server = os.getenv("SMTP_HOST")
+        smtp_port = int(os.getenv("SMTP_PORT"))
 
         if not sender_email or not password:
             print(
@@ -88,13 +167,23 @@ async def send_email_report(email: str, report_data: dict, task_id: str):
         message["To"] = email
 
         # Create HTML content
+        download_link = ""
+        if owner and repo and contributor_login:
+            base_url = os.getenv("APP_BASE_URL", "http://localhost:8000")
+            download_url = f"{base_url}/api/download-report/{owner}/{repo}/{report_data['filename']}"
+            download_link = f"""
+            <p><a href="{download_url}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 10px 20px; 
+               text-align: center; text-decoration: none; border-radius: 4px; font-weight: bold;">Download Report</a></p>
+            """
+
         html = f"""
         <html>
             <body>
                 <h2>GitHub Code Quality Report</h2>
                 <p>Your report for repository {report_data["repo_owner"]}/{report_data["repo_name"]} is ready.</p>
                 <p>Report generated for {report_data["contributor_name"]} in the date range: {report_data.get("date_range", "All time")}</p>
-                <p>You can view the details by returning to the application.</p>
+                {download_link}
+                <p>You can also view the details by returning to the application.</p>
             </body>
         </html>
         """
@@ -151,18 +240,25 @@ async def generate_github_report(
     user_email: str,
     github_service: services.GitHubService,
 ):
-    """Background task to generate GitHub report"""
+    """Background task to generate GitHub report for a specific contributor"""
     try:
         # Original get_github_repo code
         # Формирование фильтра по датам
         if date_filter != "":
             date_filter = f"+created:{date_filter}"
 
-        # Формирование фильтра по датам
+        # Ensure contributor login is lowercase for case-insensitive comparisons
         if contributor_login_filter != "":
             contributor_login_filter = contributor_login_filter.lower()
         if contributor_email_filter != "":
             contributor_email_filter = contributor_email_filter.lower()
+
+        # Update task status to indicate which contributor is being processed
+        if task_id in report_tasks:
+            if "processing_contributor" not in report_tasks[task_id]:
+                report_tasks[task_id]["processing_contributor"] = (
+                    contributor_login_filter
+                )
 
         contributor_details = await github_service.get_repo_contributors(owner, repo)
 
@@ -321,20 +417,87 @@ async def generate_github_report(
             else None
         )
 
-        # Формирование и сохранение результата
+        # Формирование результата для текущего контрибьютера
         result = schemas.GitHubRepo(
             **merged_prs,
             language=repo_info.get("language"),
             topics=topics,
             contributor_name=contributor_name,
             contributor_email=contributor_email,
+            contributor_login=contributor_login_filter,  # Add login to help identify this report
         )
 
-        # Store the result
-        report_tasks[task_id]["result"] = result.dict()
-        report_tasks[task_id]["status"] = "completed"
+        # Generate the report file
+        try:
+            date_filter_cleaned = (
+                date_filter.replace("+created:", "") if date_filter else ""
+            )
+            file_path, filename = await create_report_file(
+                owner,
+                repo,
+                contributor_login_filter,
+                start_date=date_filter_cleaned.split("..")[0]
+                if ".." in date_filter_cleaned
+                else None,
+                end_date=date_filter_cleaned.split("..")[1]
+                if ".." in date_filter_cleaned
+                else None,
+            )
 
-        print("Report generated successfully")
+            # Store the report file path in the global dictionary
+            key = f"{owner}/{repo}/{contributor_login_filter}"
+            report_files[key] = str(file_path)
+
+            # Add the report file path to the result
+            result_dict = result.dict()
+            result_dict["report_file"] = str(file_path)
+            result_dict["report_filename"] = filename
+
+            # Use the updated result dictionary
+            result = schemas.GitHubRepo(**result_dict)
+        except Exception as e:
+            print(f"Error generating report file: {str(e)}")
+
+        # Store the result in the task's results dictionary
+        if task_id in report_tasks:
+            # Update task status for multiple contributors
+            if (
+                "pending_contributors" in report_tasks[task_id]
+                and contributor_login_filter
+                in report_tasks[task_id]["pending_contributors"]
+            ):
+                # Remove from pending list
+                report_tasks[task_id]["pending_contributors"].remove(
+                    contributor_login_filter
+                )
+                # Add to completed list
+                if "completed_contributors" in report_tasks[task_id]:
+                    report_tasks[task_id]["completed_contributors"].append(
+                        contributor_login_filter
+                    )
+
+                # Store this contributor's report in the results dictionary
+                if "results" in report_tasks[task_id]:
+                    report_tasks[task_id]["results"][contributor_login_filter] = (
+                        result.dict()
+                    )
+
+                # Update overall status
+                if not report_tasks[task_id]["pending_contributors"]:
+                    # All contributors processed
+                    report_tasks[task_id]["status"] = "completed"
+                    print(f"All reports for task {task_id} generated successfully")
+                else:
+                    # More contributors to process
+                    report_tasks[task_id]["status"] = "partial"
+                    print(
+                        f"Report for {contributor_name} ({contributor_login_filter}) generated successfully. {len(report_tasks[task_id]['pending_contributors'])} contributors remaining."
+                    )
+            else:
+                # Single contributor workflow or fallback
+                report_tasks[task_id]["result"] = result.dict()
+                report_tasks[task_id]["status"] = "completed"
+                print("Report generated successfully")
 
         # Send email with report
         await send_email_report(
@@ -343,22 +506,54 @@ async def generate_github_report(
                 "repo_owner": owner,
                 "repo_name": repo,
                 "contributor_name": contributor_name or "all contributors",
+                "contributor_login": contributor_login_filter,  # Add login to identify this report
+                "filename": filename,
                 "date_range": date_filter.replace("+created:", "")
                 if date_filter
                 else "All time",
             },
             task_id,
+            owner=owner,
+            repo=repo,
+            contributor_login=contributor_login_filter,
         )
 
     except Exception as e:
-        report_tasks[task_id]["status"] = "failed"
+        # Mark this specific contributor as failed
+        if (
+            task_id in report_tasks
+            and "pending_contributors" in report_tasks[task_id]
+            and contributor_login_filter
+            in report_tasks[task_id]["pending_contributors"]
+        ):
+            report_tasks[task_id]["pending_contributors"].remove(
+                contributor_login_filter
+            )
+            if "failed_contributors" not in report_tasks[task_id]:
+                report_tasks[task_id]["failed_contributors"] = []
+            report_tasks[task_id]["failed_contributors"].append(
+                contributor_login_filter
+            )
+
+            # If all contributors have been processed (either succeeded or failed)
+            if not report_tasks[task_id]["pending_contributors"]:
+                if not report_tasks[task_id].get("completed_contributors"):
+                    # All contributors failed
+                    report_tasks[task_id]["status"] = "failed"
+                else:
+                    # Some succeeded, some failed
+                    report_tasks[task_id]["status"] = "partial"
+        else:
+            # Fallback for single-contributor workflow or other errors
+            report_tasks[task_id]["status"] = "failed"
+
         report_tasks[task_id]["error"] = str(e)
-        print(f"Error generating report: {str(e)}")
+        print(f"Error generating report for {contributor_login_filter}: {str(e)}")
 
 
 @router.post(
     "/github/repo/merged/{owner}/{repo}/async",
-    summary="Асинхронно сгенерировать отчет о PR в репозитории и отправить на почту",
+    summary="Асинхронно сгенерировать отчеты о PR в репозитории для выбранных контрибьютеров и отправить на почту",
     tags=["GitHub"],
 )
 async def get_github_repo_async(
@@ -367,7 +562,9 @@ async def get_github_repo_async(
     repo: str,
     email_data: EmailRequest,
     background_tasks: BackgroundTasks,
-    contributor_login_filter: Optional[str] = Query(""),
+    contributors: Optional[str] = Query(
+        ""
+    ),  # Now expects comma-separated list of logins
     contributor_email_filter: Optional[str] = Query(""),
     date_filter: Optional[str] = Query(""),
     github_service: services.GitHubService = Depends(services.GitHubService),
@@ -377,53 +574,108 @@ async def get_github_repo_async(
     # Generate a unique task ID
     task_id = str(uuid.uuid4())
 
+    # Parse contributors list
+    contributor_logins = []
+    if contributors:
+        contributor_logins = [
+            login.strip() for login in contributors.split(",") if login.strip()
+        ]
+
     # Store initial task info
     report_tasks[task_id] = {
         "status": "processing",
         "owner": owner,
         "repo": repo,
         "email": email_data.email,
-        "contributor_login": contributor_login_filter,
+        "contributors": contributor_logins,
         "contributor_email": contributor_email_filter,
         "date_filter": date_filter,
+        "pending_contributors": contributor_logins.copy() if contributor_logins else [],
+        "completed_contributors": [],
+        "results": {},
     }
 
-    # Schedule background task
-    background_tasks.add_task(
-        generate_github_report,
-        task_id,
-        owner,
-        repo,
-        contributor_login_filter,
-        contributor_email_filter,
-        date_filter,
-        email_data.email,
-        github_service,
-    )
+    # Process each contributor in the background
+    if contributor_logins:
+        for contributor_login in contributor_logins:
+            background_tasks.add_task(
+                generate_github_report,
+                task_id,
+                owner,
+                repo,
+                contributor_login,
+                contributor_email_filter,
+                date_filter,
+                email_data.email,
+                github_service,
+            )
+    else:
+        # Fallback to old behavior if no contributors specified
+        background_tasks.add_task(
+            generate_github_report,
+            task_id,
+            owner,
+            repo,
+            "",
+            contributor_email_filter,
+            date_filter,
+            email_data.email,
+            github_service,
+        )
 
     return {"task_id": task_id, "status": "processing"}
 
 
 @router.get(
-    "/task/{task_id}",
-    summary="Получить статус выполнения задачи",
+    "/github/tasks/{task_id}",
+    summary="Получить статус асинхронной задачи",
+    tags=["Tasks"],
+)
+@router.get(
+    "/task/{task_id}",  # Added for backward compatibility with the client
+    summary="Получить статус асинхронной задачи",
     tags=["Tasks"],
 )
 async def get_task_status(task_id: str):
+    """Get the status of a background task"""
     if task_id not in report_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
     task_info = report_tasks[task_id]
-
     response = {
         "task_id": task_id,
         "status": task_info["status"],
     }
 
-    if task_info["status"] == "failed":
-        response["error"] = task_info.get("error", "Unknown error")
-    elif task_info["status"].startswith("completed"):
-        response["result"] = task_info.get("result")
+    # Include information about pending, completed, and failed contributors
+    if "pending_contributors" in task_info:
+        response["pending_contributors"] = task_info["pending_contributors"]
+    if "completed_contributors" in task_info:
+        response["completed_contributors"] = task_info["completed_contributors"]
+    if "failed_contributors" in task_info:
+        response["failed_contributors"] = task_info["failed_contributors"]
+
+    # Include the contributor currently being processed
+    if "processing_contributor" in task_info:
+        response["processing_contributor"] = task_info["processing_contributor"]
+
+    # For multi-contributor reports, return all completed results
+    if "results" in task_info and task_info["results"]:
+        response["results"] = task_info["results"]
+        # Also return the first result in the standard location for backward compatibility
+        if task_info["results"] and len(task_info["results"]) > 0:
+            first_contributor = list(task_info["results"].keys())[0]
+            response["result"] = task_info["results"][first_contributor]
+            response["contributor_login"] = first_contributor
+    # For single contributor reports (legacy support)
+    elif task_info["status"] == "completed" and "result" in task_info:
+        response["result"] = task_info["result"]
+        if "contributor_login" in task_info:
+            response["contributor_login"] = task_info["contributor_login"]
+
+    # Error handling
+    if task_info["status"] == "failed" and "error" in task_info:
+        response["error"] = task_info["error"]
 
     return response
 
@@ -643,7 +895,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Routes for file downloads
+@router.get(
+    "/download-report/{owner}/{repo}/{filename}",
+    summary="Download a PDF report for a specific contributor",
+    tags=["Reports"],
+)
+async def download_report(
+    owner: str,
+    repo: str,
+    filename: str,
+):
+    file_path = f"./reports/{owner}/{repo}/{filename}"  # Путь к файлу
+    if os.path.exists(file_path):
+        return FileResponse(
+            path=file_path, filename=filename, media_type="application/octet-stream"
+        )
+    return {"error": "Файл не найден"}
+
+
+# Add static files handling for reports directory
+app.mount("/reports", StaticFiles(directory="reports"), name="reports")
 app.include_router(router, prefix="/api")
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="localhost", port=8000, reload=True)

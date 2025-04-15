@@ -218,6 +218,7 @@ export const analyzeCodeQuality = async (
 
   return {
     id: contributor.id,
+    login: contributor.login, // Add the login property that is required by the CodeReview interface
     avatar: contributor.avatar_url,
     name: contributor.name,
     email: contributor.email,
@@ -252,13 +253,12 @@ export const performCodeReviews = async (
 ): Promise<CodeReview[] | { task_id: string; status: string }> => {
   // If email is provided, use the async API endpoint
   if (email) {
-    // Prepare contributor login filter (we'll use the first one for now)
-    const contributor_login_filter =
-      contributors.length > 0 ? contributors[0] : '';
+    // Join all contributors into a comma-separated list for the API
+    const contributorsList = contributors.join(',');
 
-    // Call the async endpoint
+    // Call the async endpoint with all selected contributors
     const { data } = await githubClient.post(
-      `/api/github/repo/merged/${owner}/${repo}/async?contributor_login_filter=${contributor_login_filter}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
+      `/api/github/repo/merged/${owner}/${repo}/async?contributors=${contributorsList}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
       { email },
     );
 
@@ -281,6 +281,8 @@ export const performCodeReviews = async (
  */
 export const checkReportStatus = async (taskId: string) => {
   const { data } = await githubClient.get(`/api/task/${taskId}`);
+  console.log(data);
+
   return data;
 };
 

@@ -105,10 +105,15 @@ interface CodeReviewParams {
 
 // Define task status response type
 export interface TaskStatusResponse {
-  task_id: string;
   status: string;
   result?: any;
   error?: string;
+  // New fields for multi-contributor support
+  results?: Record<string, any>;
+  pending_contributors?: string[];
+  completed_contributors?: string[];
+  failed_contributors?: string[];
+  contributor_login?: string;
 }
 
 /**
@@ -116,11 +121,19 @@ export interface TaskStatusResponse {
  */
 export const useCodeReviews = (
   options?: Omit<
-    UseMutationOptions<CodeReview[] | TaskStatusResponse, Error, CodeReviewParams>,
+    UseMutationOptions<
+      CodeReview[] | TaskStatusResponse,
+      Error,
+      CodeReviewParams
+    >,
     'mutationFn'
   >,
 ) => {
-  return useMutation<CodeReview[] | TaskStatusResponse, Error, CodeReviewParams>({
+  return useMutation<
+    CodeReview[] | TaskStatusResponse,
+    Error,
+    CodeReviewParams
+  >({
     mutationFn: ({
       owner,
       repo,
@@ -138,7 +151,12 @@ export const useCodeReviews = (
  * Hook for checking report task status
  */
 export const useTaskStatus = (taskId: string, enabled: boolean = false) => {
-  return useQuery<TaskStatusResponse, Error, TaskStatusResponse, [string, string]>({
+  return useQuery<
+    TaskStatusResponse,
+    Error,
+    TaskStatusResponse,
+    [string, string]
+  >({
     queryKey: ['taskStatus', taskId],
     queryFn: () => checkReportStatus(taskId),
     enabled: enabled && !!taskId,

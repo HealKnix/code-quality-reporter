@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect } from 'react';
 import { CodeReview } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -18,15 +18,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
+// The toast import is removed as it's not used
+import { DownloadIcon, Loader2 } from 'lucide-react';
 
 interface CodeReviewResultsProps {
   reviews: CodeReview[];
   dateRangeFormatted?: string;
+  loadingContributors?: string[];
 }
 
 const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
-  ({ reviews, dateRangeFormatted = '' }, ref) => {
+  ({ reviews, dateRangeFormatted = '', loadingContributors = [] }, ref) => {
     // Function to get badge variant based on status
     const getStatusVariant = (status: string) => {
       switch (status) {
@@ -41,13 +43,15 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
       }
     };
 
-    const { toast } = useToast();
+    useEffect(() => {
+      console.log(reviews);
+    }, []);
 
     return (
       <Card className="mb-6" ref={ref}>
         <CardHeader>
           <CardTitle className="text-xl">
-            Код-ревью
+            Отчеты
             {dateRangeFormatted && (
               <span className="ml-2 text-base font-normal text-muted-foreground">
                 за период {dateRangeFormatted}
@@ -65,6 +69,7 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                 <TableHead className="text-center">Мерджей за период</TableHead>
                 <TableHead className="text-center">Статус</TableHead>
                 <TableHead className="text-right">Рейтинг</TableHead>
+                <TableHead className="text-right">Отчет</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -97,12 +102,27 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                     <TableCell className="text-right font-medium">
                       {review.rating.toFixed(1)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      {loadingContributors.includes(review.login) ? (
+                        <Button variant="outline" size="sm" disabled>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Генерация...
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href="#">
+                            <DownloadIcon className="mr-2 h-4 w-4" />
+                            Скачать отчет
+                          </a>
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="text-center py-4 text-muted-foreground"
                   >
                     Нет данных для отображения. Выберите контрибьютеров и период
@@ -113,19 +133,6 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter>
-          <Button
-            onClick={() => {
-              toast({
-                variant: 'success',
-                title: 'Успешно',
-                description: 'Отчёт сформирован',
-              });
-            }}
-          >
-            Сформировать отчет
-          </Button>
-        </CardFooter>
       </Card>
     );
   },

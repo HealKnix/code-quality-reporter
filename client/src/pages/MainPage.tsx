@@ -5,7 +5,6 @@ import RepositoryInput from '@/components/Repository/RepositoryInput';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/use-toast';
 import {
-  TaskStatusResponse,
   useCodeReviews,
   useContributors,
   useRepositoryInfo,
@@ -18,7 +17,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DateRange } from 'react-day-picker';
 import { CodeReview, Contributor } from '../types';
 
-const MainPage: React.FC = () => {
+function MainPage() {
   const [repoUrl, setRepoUrl] = useState('');
   const [selectedContributors, setSelectedContributors] = useState<
     Contributor[]
@@ -28,6 +27,11 @@ const MainPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [loadingContributors, setLoadingContributors] = useState<string[]>([]);
+  const [processingContributors, setProcessingContributors] = useState<
+    Set<string>
+  >(new Set());
+  const [showReportsSection, setShowReportsSection] = useState(false);
   const { toast } = useToast();
   const contributorsRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -59,48 +63,147 @@ const MainPage: React.FC = () => {
     if (isLoadingContributors) {
       setCodeReviews([]);
     }
-  }, [isLoadingContributors]);
+  }, [isLoadingContributors, setCodeReviews]);
 
   // Task status polling for async report generation
   const { data: taskStatus } = useTaskStatus(taskId || '', isReportGenerating);
 
+  // Define code review mutation
+  const codeReviewMutation = useCodeReviews();
+
+  // Function to process a contributor's result
+  const processContributorResult = (contributorLogin: string, result: any) => {
+    // Find the contributor in the selected list
+    const contributor = selectedContributors.find(
+      (c: Contributor) => c.login === contributorLogin,
+    );
+
+    if (!contributor) return;
+
+    // Create or update the review for this contributor
+    const newReview: CodeReview = {
+      id: contributor.id,
+      login: contributor.login,
+      avatar: contributor.avatar_url,
+      name: result.contributor_name || contributor.name,
+      email: result.contributor_email || contributor.email || email,
+      mergeCount: result.total_count || contributor.mergeCount,
+      rating: 8, // Default rating
+      status: 'Хорошо' as 'Хорошо',
+      details: {
+        codeStyle: 8,
+        bugFixes: 8,
+        performance: 8,
+        security: 8,
+      },
+    };
+
+    // Update or add the review
+    setCodeReviews((prev: CodeReview[]) => {
+      const reviewIndex = prev.findIndex(
+        (r: CodeReview) => r.login === contributor.login,
+      );
+      if (reviewIndex >= 0) {
+        const updated = [...prev];
+        updated[reviewIndex] = newReview;
+        return updated;
+      } else {
+        return [...prev, newReview];
+      }
+    });
+  };
+
   // Handle task status changes
   useEffect(() => {
-    if (taskStatus?.status === 'completed' && taskStatus.result) {
+    if (!taskStatus) return;
+
+    // Check for individual contributor results
+    if (taskStatus.results) {
+      // Process each completed contributor's result
+      Object.entries(taskStatus.results).forEach(
+        ([contributorLogin, result]) => {
+          processContributorResult(contributorLogin, result);
+          // Remove this contributor from loading state
+          setLoadingContributors((prev) =>
+            prev.filter((login) => login !== contributorLogin),
+          );
+        },
+      );
+    }
+
+    // Check for individual contributor result (single update)
+    if (taskStatus.contributor_login && taskStatus.result) {
+      processContributorResult(taskStatus.contributor_login, taskStatus.result);
+      // Remove this contributor from loading state
+      setLoadingContributors((prev) =>
+        prev.filter((login) => login !== taskStatus.contributor_login),
+      );
+    }
+
+    // Check for completed tasks
+    if (taskStatus.status === 'completed') {
+      // Task is completely done, no more polling needed
       setIsReportGenerating(false);
 
       toast({
-        title: 'Отчет готов!',
-        description:
-          'Отчет был успешно сгенерирован и отправлен на указанную почту.',
+        title: 'Отчеты готовы!',
+        description: 'Все отчеты были успешно сгенерированы.',
       });
 
-      if (Array.isArray(taskStatus.result.items)) {
-        // Convert the result to CodeReview array format if needed
-        setCodeReviews([
-          {
-            id: 0,
-            avatar: selectedContributors[0]?.avatar_url || '',
-            name:
-              taskStatus.result.contributor_name ||
-              selectedContributors[0]?.name ||
-              '',
-            email: taskStatus.result.contributor_email || email,
-            mergeCount: taskStatus.result.total_count || 0,
-            rating: 8, // Default rating
-            status: 'Хорошо',
-            details: {
-              codeStyle: 8,
-              bugFixes: 8,
-              performance: 8,
-              security: 8,
+      // Clear the loading indicators for all contributors
+      setLoadingContributors([]);
+
+      // Process the results if they exist
+      if (taskStatus.result) {
+        // Single contributor result
+        if (taskStatus.result.contributor_login) {
+          processContributorResult(
+            taskStatus.result.contributor_login,
+            taskStatus.result,
+          );
+        }
+
+        // Handle multi-contributor results
+        if (
+          taskStatus.completed_contributors &&
+          Array.isArray(taskStatus.completed_contributors)
+        ) {
+          taskStatus.completed_contributors.forEach(
+            (contributorLogin: string) => {
+              // Try to find the result for this contributor
+              const contributorResult = taskStatus.results?.[contributorLogin];
+              if (contributorResult) {
+                processContributorResult(contributorLogin, contributorResult);
+              }
             },
-          },
-        ]);
-        scrollToResults();
+          );
+        }
       }
-    } else if (taskStatus?.status === 'failed') {
+    }
+    // Handle partial completion
+    else if (taskStatus.status === 'partial') {
+      // Some contributors are done, but not all
+      if (taskStatus.completed_contributors) {
+        // Update each completed contributor
+        taskStatus.completed_contributors.forEach(
+          (contributorLogin: string) => {
+            // Try to find this contributor's result
+            const contributorResult = taskStatus.results?.[contributorLogin];
+            if (contributorResult) {
+              // Remove from loading state
+              setLoadingContributors((prev: string[]) =>
+                prev.filter((login: string) => login !== contributorLogin),
+              );
+              // Process the result
+              processContributorResult(contributorLogin, contributorResult);
+            }
+          },
+        );
+      }
+    } else if (taskStatus.status === 'failed') {
       setIsReportGenerating(false);
+      // Remove all pending contributors from loading state
+      setLoadingContributors([]);
       toast({
         variant: 'destructive',
         title: 'Ошибка',
@@ -108,6 +211,8 @@ const MainPage: React.FC = () => {
       });
     } else if (taskStatus?.status === 'completed-email-failed') {
       setIsReportGenerating(false);
+      // Remove all pending contributors from loading state
+      setLoadingContributors([]);
       toast({
         variant: 'warning',
         title: 'Отчет готов, но не отправлен',
@@ -124,63 +229,6 @@ const MainPage: React.FC = () => {
       });
     }
   }, [taskStatus, toast, email, selectedContributors]);
-
-  const codeReviewMutation = useCodeReviews({
-    onSuccess: (data) => {
-      // Handle task ID response (async mode)
-      if (!Array.isArray(data) && 'task_id' in data) {
-        setTaskId(data.task_id);
-        setIsReportGenerating(true);
-
-        toast({
-          title: 'Отчет генерируется',
-          description:
-            'Отчет будет отправлен на указанную почту после завершения генерации.',
-        });
-        return;
-      }
-
-      // Handle array response (sync mode)
-      const reviews = data as CodeReview[];
-
-      if (reviews.some((c) => c.mergeCount === 0)) {
-        // Формируем список контрибьютеров без мерджей
-        const noMergesNames = reviews
-          .filter((c) => c.mergeCount === 0)
-          .map((c) => c.name)
-          .join(', ');
-
-        // Показываем toast с предупреждением
-        toast({
-          variant: 'warning',
-          title: 'Предупреждение',
-          description: (
-            <>
-              Следующие контрибьютеры не имеют мерджей за период (
-              {formatDateRange(dateRange)}): <strong>{noMergesNames}</strong>.
-              Выберите другой период или других контрибьютеров.
-            </>
-          ),
-        });
-      }
-      setCodeReviews(
-        reviews
-          .filter((c) => c.mergeCount > 0)
-          .sort((a, b) => b.rating - a.rating),
-      );
-      scrollToResults();
-    },
-    onError: (error: Error) => {
-      console.error('Error performing code reviews:', error);
-      // Показываем toast с ошибкой
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: `Ошибка при проверке мерджей. Попробуйте ещё раз.\n${error.message}`,
-      });
-      scrollToContributors();
-    },
-  });
 
   const handleRepositorySubmit = (inputRepoUrl: string) => {
     setCodeReviews([]);
@@ -278,17 +326,92 @@ const MainPage: React.FC = () => {
       .filter((c) => c.mergeCount > 0)
       .map((c) => c.login);
 
-    codeReviewMutation.mutate({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      contributors: contributorLogins,
-      startDate,
-      endDate,
-      email: email || undefined, // Only pass email if provided
+    // Show reports section immediately
+    setShowReportsSection(true);
+
+    // Clear any previous loading states
+    setLoadingContributors([]);
+    setProcessingContributors(new Set());
+
+    // Prepare empty report templates for each contributor
+    const initialReviews: CodeReview[] = contributorLogins.map((login) => {
+      const contributor = selectedContributors.find((c) => c.login === login);
+      return {
+        id: contributor?.id || 0,
+        login: contributor?.login || '',
+        avatar: contributor?.avatar_url || '',
+        name: contributor?.name || '',
+        email: contributor?.email || email,
+        mergeCount: contributor?.mergeCount || 0,
+        rating: 0,
+        status: 'Хорошо' as 'Хорошо',
+        details: {
+          codeStyle: 0,
+          bugFixes: 0,
+          performance: 0,
+          security: 0,
+        },
+      };
     });
+    setCodeReviews(initialReviews);
+
+    // Scroll to results section before starting the process
+    scrollToResults();
+
+    // Process each contributor individually with its own loader
+    for (const login of contributorLogins) {
+      try {
+        // Add to loading state for this specific contributor
+        setLoadingContributors((prev) => [...prev, login]);
+
+        // Make individual request for this contributor
+        const result = await codeReviewMutation.mutateAsync({
+          owner: repoInfo.owner,
+          repo: repoInfo.repo,
+          contributors: [login], // Only this contributor
+          startDate,
+          endDate,
+          email: email || undefined,
+        });
+
+        // If result is async task with task_id, the polling mechanism will handle it
+        if (!Array.isArray(result) && 'task_id' in result) {
+          setTaskId(result.task_id as string);
+          setIsReportGenerating(true);
+
+          toast({
+            title: 'Отчет генерируется',
+            description: `Отчет для контрибьютера ${login} будет отправлен на указанную почту после завершения генерации.`,
+          });
+        } else {
+          // For sync mode, process the result directly
+          const reviews = result as CodeReview[];
+          if (reviews.length > 0) {
+            // Update the code review data for this contributor
+            const reviewData = reviews[0]; // Should only be one result since we requested one contributor
+            processContributorResult(login, reviewData);
+
+            // Remove from loading state
+            setLoadingContributors((prev) => prev.filter((l) => l !== login));
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing contributor ${login}:`, error);
+        // Remove from loading state on error
+        setLoadingContributors((prev) => prev.filter((l) => l !== login));
+
+        // Show error toast
+        toast({
+          variant: 'destructive',
+          title: 'Ошибка',
+          description: `Не удалось сгенерировать отчет для ${login}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+        });
+      }
+    }
   };
 
-  const error = repoError || codeReviewMutation.error;
+  // Detect errors from API calls
+  const error = repoError || (codeReviewMutation?.error as Error | undefined);
 
   // Если есть ошибка, показываем toast с ошибкой
   React.useEffect(() => {
@@ -297,7 +420,8 @@ const MainPage: React.FC = () => {
         error instanceof Error ? error.message : 'Произошла ошибка';
 
       if (error instanceof Error && error.message.includes('rate limit')) {
-        description = `${description}\nДостигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или вписать GitHub токен в поле "GitHub API Token"`;
+        description = `${description}
+Достигнут лимит запросов к GitHub API. Вы можете подождать некоторое время или вписать GitHub токен в поле "GitHub API Token"`;
       }
 
       toast({
@@ -348,11 +472,12 @@ const MainPage: React.FC = () => {
                 />
               </div>
 
-              {codeReviews.length > 0 && !codeReviewMutation.isPending && (
+              {(showReportsSection || codeReviews.length > 0) && (
                 <div ref={resultsRef}>
                   <CodeReviewResults
                     reviews={codeReviews}
                     dateRangeFormatted={formatDateRange(dateRange)}
+                    loadingContributors={loadingContributors}
                   />
                 </div>
               )}
@@ -362,7 +487,7 @@ const MainPage: React.FC = () => {
       )}
     </div>
   );
-};
+}
 
 // Simple email validation function
 const validateEmail = (email: string): boolean => {

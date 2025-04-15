@@ -12,12 +12,14 @@ export interface Contributor {
 
 export interface CodeReview {
   id: string | number;
+  login: string; // Added login field for identifying contributors
   avatar: string;
   name: string;
   email: string;
   mergeCount: number;
   status: 'Хорошо' | 'Средне' | 'Плохо';
   rating: number;
+  report_file?: string;
   details?: {
     codeStyle: number;
     bugFixes: number;
