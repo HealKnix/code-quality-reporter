@@ -30,18 +30,11 @@ interface CodeReviewResultsProps {
   reviews: CodeReview[];
   dateRangeFormatted?: string;
   loadingContributors?: string[];
-  taskResults?: Record<string, TaskStatusResult>;
 }
 
 const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
   (
-    {
-      repoInfo,
-      reviews,
-      dateRangeFormatted = '',
-      loadingContributors = [],
-      taskResults,
-    },
+    { repoInfo, reviews, dateRangeFormatted = '', loadingContributors = [] },
     ref,
   ) => {
     // Function to get badge variant based on status
@@ -120,7 +113,7 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                       ) : (
                         <Button variant="outline" size="sm" asChild>
                           <a
-                            href={`${process.env.REACT_APP_API_BASE_URL}/api/download-report/${repoInfo.owner}/${repoInfo.repo}/${taskResults?.[review.login].report_filename}`}
+                            href={`${process.env.REACT_APP_API_BASE_URL}/api/download-report/${repoInfo.owner}/${repoInfo.repo}/${review.report_file}`}
                           >
                             <DownloadIcon className="mr-2 h-4 w-4" />
                             Скачать отчет

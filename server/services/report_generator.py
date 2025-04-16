@@ -3,6 +3,7 @@ from typing import Dict
 import schemas
 from utils.file_utils import create_report_file
 
+from services.github_service import GitHubService
 from services.email_service import send_email_report
 
 
@@ -14,7 +15,7 @@ async def generate_github_report(
     contributor_email_filter: str,
     date_filter: str,
     user_email: str,
-    github_service,
+    github_service: GitHubService,
     report_tasks: Dict[str, Dict],
 ):
     # Импортируем блокировку для безопасного доступа к словарю report_tasks
@@ -67,20 +68,22 @@ async def generate_github_report(
                 report_tasks[task_id]["result"] = result.dict()
                 report_tasks[task_id]["status"] = "completed"
 
-            await send_email_report(
-                user_email,
-                {
-                    "repo_owner": owner,
-                    "repo_name": repo,
-                    "contributor_name": result.contributor_name or "all contributors",
-                    "date_range": date_filter.replace("+created:", "")
-                    if date_filter
-                    else "All time",
-                },
-                task_id,
-                report_tasks,
-            )
-            return
+            if user_email:
+                await send_email_report(
+                    user_email,
+                    {
+                        "repo_owner": owner,
+                        "repo_name": repo,
+                        "contributor_name": result.contributor_name
+                        or "all contributors",
+                        "date_range": date_filter.replace("+created:", "")
+                        if date_filter
+                        else "All time",
+                    },
+                    task_id,
+                    report_tasks,
+                )
+                return
 
         # Get commits for each PR
         if "items" in merged_prs and merged_prs["items"]:
@@ -270,25 +273,26 @@ async def generate_github_report(
                     report_tasks[task_id]["status"] = "completed"
                     print("Report generated successfully")
 
-        # Send email with report
-        await send_email_report(
-            user_email,
-            {
-                "repo_owner": owner,
-                "repo_name": repo,
-                "contributor_name": contributor_name or "all contributors",
-                "contributor_login": contributor_login_filter,  # Add login to identify this report
-                "filename": filename,
-                "date_range": date_filter.replace("+created:", "")
-                if date_filter
-                else "All time",
-            },
-            task_id,
-            report_tasks,
-            owner=owner,
-            repo=repo,
-            contributor_login=contributor_login_filter,
-        )
+        if user_email:
+            # Send email with report
+            await send_email_report(
+                user_email,
+                {
+                    "repo_owner": owner,
+                    "repo_name": repo,
+                    "contributor_name": contributor_name or "all contributors",
+                    "contributor_login": contributor_login_filter,  # Add login to identify this report
+                    "filename": filename,
+                    "date_range": date_filter.replace("+created:", "")
+                    if date_filter
+                    else "All time",
+                },
+                task_id,
+                report_tasks,
+                owner=owner,
+                repo=repo,
+                contributor_login=contributor_login_filter,
+            )
 
     except Exception as e:
         # Mark this specific contributor as failed

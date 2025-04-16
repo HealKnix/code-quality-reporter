@@ -90,6 +90,7 @@ function MainPage() {
       mergeCount: result.total_count || contributor.mergeCount,
       rating: 8, // Default rating
       status: 'Хорошо' as 'Хорошо',
+      report_file: result.report_filename || '',
       details: {
         codeStyle: 8,
         bugFixes: 8,
@@ -482,7 +483,6 @@ function MainPage() {
                     dateRangeFormatted={formatDateRange(dateRange)}
                     loadingContributors={loadingContributors}
                     repoInfo={repoInfo}
-                    taskResults={taskStatus?.results}
                   />
                 </div>
               )}

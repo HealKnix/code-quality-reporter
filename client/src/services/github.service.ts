@@ -251,28 +251,16 @@ export const performCodeReviews = async (
   endDate: string,
   email?: string,
 ): Promise<CodeReview[] | { task_id: string; status: string }> => {
-  // If email is provided, use the async API endpoint
-  if (email) {
-    // Join all contributors into a comma-separated list for the API
-    const contributorsList = contributors.join(',');
+  // Join all contributors into a comma-separated list for the API
+  const contributorsList = contributors.join(',');
 
-    // Call the async endpoint with all selected contributors
-    const { data } = await githubClient.post(
-      `/api/github/repo/merged/${owner}/${repo}/async?contributors=${contributorsList}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
-      { email },
-    );
+  // Call the async endpoint with all selected contributors
+  const { data } = await githubClient.post(
+    `/api/github/repo/merged/${owner}/${repo}/async?contributors=${contributorsList}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
+    { email },
+  );
 
-    return data;
-  } else {
-    // Use the existing synchronous approach for backward compatibility
-    const reviews = await Promise.all(
-      contributors.map((login) =>
-        analyzeCodeQuality(owner, repo, login, startDate, endDate),
-      ),
-    );
-
-    return reviews;
-  }
+  return data;
 };
 
 /**

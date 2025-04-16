@@ -87,7 +87,7 @@ async def get_github_repo_async(
             "status": "processing",
             "owner": owner,
             "repo": repo,
-            "email": email_data.email,
+            "email": email_data.email if email_data else "",
             "contributors": contributor_logins,
             "date_filter": date_filter,
             "pending_contributors": contributor_logins.copy()
@@ -108,7 +108,7 @@ async def get_github_repo_async(
                 contributor_login,
                 contributor_email_filter,
                 date_filter,
-                email_data.email,
+                email_data.email if email_data else "",
                 github_service,
                 report_tasks,
             )
