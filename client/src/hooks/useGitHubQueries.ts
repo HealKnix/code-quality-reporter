@@ -103,14 +103,58 @@ interface CodeReviewParams {
   email?: string;
 }
 
+export interface TaskStatusResultCommit {
+  sha: string;
+  author: {
+    date: Date;
+    email: string;
+    name: string;
+  };
+  files: {
+    additions: number;
+    changes: number;
+    deletions: number;
+    filename: string;
+    patch: string;
+    raw: string;
+    status: string;
+  }[];
+}
+
+export interface TaskStatusResultMerge {
+  body: string;
+  commits: string[];
+  id: number;
+  number: number;
+  pull_request: {
+    merged_at: Date;
+    url: string;
+  };
+  title: string;
+  user: Contributor;
+}
+
+export interface TaskStatusResult {
+  contributor_email: string;
+  contributor_id: number;
+  contributor_name: string;
+  incomplete_results: boolean;
+  items: TaskStatusResultMerge[];
+  language: string;
+  report_filename: string;
+  topics: string[];
+  total_count: number;
+}
+
 // Define task status response type
 export interface TaskStatusResponse {
   status: string;
   result?: any;
   error?: string;
   // New fields for multi-contributor support
-  results?: Record<string, any>;
+  results?: Record<string, TaskStatusResult>;
   pending_contributors?: string[];
+  processing_contributor?: string;
   completed_contributors?: string[];
   failed_contributors?: string[];
   contributor_login?: string;

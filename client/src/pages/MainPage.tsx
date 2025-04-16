@@ -129,15 +129,6 @@ function MainPage() {
           );
         },
       );
-      // Object.entries(taskStatus.results).forEach(([results]) => {
-      //   setLoadingContributors1((prev) => [
-      //     ...prev,
-      //     {
-      //       id: results?.id,
-      //       filename: results?.filename,
-      //     },
-      //   ]);
-      // });
     }
 
     // Check for individual contributor result (single update)
@@ -490,6 +481,8 @@ function MainPage() {
                     reviews={codeReviews}
                     dateRangeFormatted={formatDateRange(dateRange)}
                     loadingContributors={loadingContributors}
+                    repoInfo={repoInfo}
+                    taskResults={taskStatus?.results}
                   />
                 </div>
               )}

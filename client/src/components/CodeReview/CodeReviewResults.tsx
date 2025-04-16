@@ -20,15 +20,30 @@ import {
 } from '@/components/ui/table';
 // The toast import is removed as it's not used
 import { DownloadIcon, Loader2 } from 'lucide-react';
+import {
+  RepositoryInfoReturn,
+  TaskStatusResult,
+} from '@/hooks/useGitHubQueries';
 
 interface CodeReviewResultsProps {
+  repoInfo: RepositoryInfoReturn;
   reviews: CodeReview[];
   dateRangeFormatted?: string;
   loadingContributors?: string[];
+  taskResults?: Record<string, TaskStatusResult>;
 }
 
 const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
-  ({ reviews, dateRangeFormatted = '', loadingContributors = [] }, ref) => {
+  (
+    {
+      repoInfo,
+      reviews,
+      dateRangeFormatted = '',
+      loadingContributors = [],
+      taskResults,
+    },
+    ref,
+  ) => {
     // Function to get badge variant based on status
     const getStatusVariant = (status: string) => {
       switch (status) {
@@ -42,10 +57,6 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
           return 'secondary';
       }
     };
-
-    useEffect(() => {
-      console.log(reviews);
-    }, []);
 
     return (
       <Card className="mb-6" ref={ref}>
@@ -69,7 +80,7 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                 <TableHead className="text-center">Мерджей за период</TableHead>
                 <TableHead className="text-center">Статус</TableHead>
                 <TableHead className="text-right">Рейтинг</TableHead>
-                <TableHead className="text-right">Отчет</TableHead>
+                <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -108,7 +119,9 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                         </Button>
                       ) : (
                         <Button variant="outline" size="sm" asChild>
-                          <a href="#">
+                          <a
+                            href={`${process.env.REACT_APP_API_BASE_URL}/api/download-report/${repoInfo.owner}/${repoInfo.repo}/${taskResults?.[review.login].report_filename}`}
+                          >
                             <DownloadIcon className="mr-2 h-4 w-4" />
                             Скачать отчет
                           </a>

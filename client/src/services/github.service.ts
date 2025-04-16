@@ -281,7 +281,6 @@ export const performCodeReviews = async (
  */
 export const checkReportStatus = async (taskId: string) => {
   const { data } = await githubClient.get(`/api/task/${taskId}`);
-  console.log(data);
 
   return data;
 };
