@@ -1,5 +1,4 @@
-import asyncio
-from typing import Dict, List, Optional
+from typing import Dict
 
 import schemas
 from utils.file_utils import create_report_file
@@ -224,6 +223,7 @@ async def generate_github_report(
 
             # Store the report file path in the global dictionary
             from utils.file_utils import report_files
+
             key = f"{owner}/{repo}/{contributor_login_filter}"
             report_files[key] = str(file_path)
 

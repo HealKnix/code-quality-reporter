@@ -1,6 +1,5 @@
-import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Create reports directory if it doesn't exist
 REPORTS_DIR = Path("reports")
