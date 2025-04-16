@@ -83,7 +83,8 @@ async def generate_github_report(
                     task_id,
                     report_tasks,
                 )
-                return
+
+            return
 
         # Get commits for each PR
         if "items" in merged_prs and merged_prs["items"]:

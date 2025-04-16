@@ -5,7 +5,7 @@ import threading
 import schemas
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from services.github_service import GitHubService
 from services.report_generator import generate_github_report
 from utils.file_utils import get_report_file_path
@@ -19,7 +19,7 @@ report_tasks_lock = threading.Lock()
 
 # Email request model
 class EmailRequest(BaseModel):
-    email: EmailStr
+    email: str | None
 
 
 router = APIRouter()
@@ -87,7 +87,7 @@ async def get_github_repo_async(
             "status": "processing",
             "owner": owner,
             "repo": repo,
-            "email": email_data.email if email_data else "",
+            "email": email_data.email if email_data.email else "",
             "contributors": contributor_logins,
             "date_filter": date_filter,
             "pending_contributors": contributor_logins.copy()
@@ -108,7 +108,7 @@ async def get_github_repo_async(
                 contributor_login,
                 contributor_email_filter,
                 date_filter,
-                email_data.email if email_data else "",
+                email_data.email if email_data.email else "",
                 github_service,
                 report_tasks,
             )

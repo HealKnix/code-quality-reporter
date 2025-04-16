@@ -74,7 +74,7 @@ export const getContributors = async (
   endDate?: string,
 ): Promise<Contributor[]> => {
   const { data } = await githubClient.get<Contributor[]>(
-    `/api/github/repo/malinatrash/projfair-client/contributors`,
+    `/api/github/repo/${owner}/${repo}/contributors`,
   );
 
   // Получаем количество мерджей для всех пользователей
@@ -257,7 +257,7 @@ export const performCodeReviews = async (
   // Call the async endpoint with all selected contributors
   const { data } = await githubClient.post(
     `/api/github/repo/merged/${owner}/${repo}/async?contributors=${contributorsList}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
-    { email },
+    { email: email ?? null },
   );
 
   return data;

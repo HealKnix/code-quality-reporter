@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -12,7 +12,7 @@ class PullRequest(BaseModel):
 class User(BaseModel):
     id: int
     login: str
-    name: str
+    name: str | None
     email: str | None
     node_id: str
     avatar_url: str
@@ -45,7 +45,7 @@ class Commit(BaseModel):
 class Item(BaseModel):
     id: int
     title: str
-    body: str | Any
+    body: str | None
     pull_request: PullRequest
     commits: List[Commit]
     user: User

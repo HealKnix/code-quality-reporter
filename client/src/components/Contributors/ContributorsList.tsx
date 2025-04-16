@@ -265,7 +265,7 @@ const ContributorsList: React.FC<ContributorsListProps> = ({
                 Генерирую отчёт...
               </>
             ) : (
-              'Сгенерировать отчет(-ы)'
+              `Сгенерировать отчёт${selectedContributors.length > 1 ? 'ы' : ''}`
             )}
           </Button>
         </div>
