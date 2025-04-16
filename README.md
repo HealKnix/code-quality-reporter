@@ -1,7 +1,7 @@
 # Code Quality Reporter
 
 <div align="center">
-  <img src="client/public/logo192.png" alt="Code Quality Reporter Logo" width="100" />
+  <img src="client/public/logo512.png" alt="Code Quality Reporter Logo" width="100" />
   <h3>Анализатор качества кода для GitHub репозиториев</h3>
 </div>
 
@@ -132,7 +132,7 @@ uvicorn main:app --reload
 
 ```bash
 cd ../client
-npm install
+npm install --legacy-peer-deps
 npm start
 ```
 
