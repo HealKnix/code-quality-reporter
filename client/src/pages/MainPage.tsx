@@ -129,6 +129,15 @@ function MainPage() {
           );
         },
       );
+      // Object.entries(taskStatus.results).forEach(([results]) => {
+      //   setLoadingContributors1((prev) => [
+      //     ...prev,
+      //     {
+      //       id: results?.id,
+      //       filename: results?.filename,
+      //     },
+      //   ]);
+      // });
     }
 
     // Check for individual contributor result (single update)
@@ -358,55 +367,58 @@ function MainPage() {
     // Scroll to results section before starting the process
     scrollToResults();
 
-    // Process each contributor individually with its own loader
-    for (const login of contributorLogins) {
-      try {
-        // Add to loading state for this specific contributor
-        setLoadingContributors((prev) => [...prev, login]);
+    // Добавляем всех контрибьюторов в состояние загрузки
+    setLoadingContributors(contributorLogins);
 
-        // Make individual request for this contributor
-        const result = await codeReviewMutation.mutateAsync({
-          owner: repoInfo.owner,
-          repo: repoInfo.repo,
-          contributors: [login], // Only this contributor
-          startDate,
-          endDate,
-          email: email || undefined,
+    try {
+      // Отправляем один запрос для всех контрибьюторов вместо цикла
+      const result = await codeReviewMutation.mutateAsync({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        contributors: contributorLogins, // Все выбранные контрибьюторы
+        startDate,
+        endDate,
+        email: email || undefined,
+      });
+
+      // Если результат - асинхронная задача с task_id
+      if (!Array.isArray(result) && 'task_id' in result) {
+        setTaskId(result.task_id as string);
+        setIsReportGenerating(true);
+
+        toast({
+          title: 'Отчеты генерируются',
+          description: `Отчеты для выбранных контрибьютеров будут отправлены на указанную почту после завершения генерации.`,
         });
+      } else {
+        // Для синхронного режима обрабатываем результаты напрямую
+        const reviews = result as CodeReview[];
+        if (reviews.length > 0) {
+          // Обновляем данные для всех контрибьюторов
+          reviews.forEach((review) => {
+            processContributorResult(review.login, review);
+          });
 
-        // If result is async task with task_id, the polling mechanism will handle it
-        if (!Array.isArray(result) && 'task_id' in result) {
-          setTaskId(result.task_id as string);
-          setIsReportGenerating(true);
+          // Очищаем состояние загрузки
+          setLoadingContributors([]);
 
           toast({
-            title: 'Отчет генерируется',
-            description: `Отчет для контрибьютера ${login} будет отправлен на указанную почту после завершения генерации.`,
+            title: 'Отчеты готовы',
+            description: 'Все отчеты были успешно сгенерированы.',
           });
-        } else {
-          // For sync mode, process the result directly
-          const reviews = result as CodeReview[];
-          if (reviews.length > 0) {
-            // Update the code review data for this contributor
-            const reviewData = reviews[0]; // Should only be one result since we requested one contributor
-            processContributorResult(login, reviewData);
-
-            // Remove from loading state
-            setLoadingContributors((prev) => prev.filter((l) => l !== login));
-          }
         }
-      } catch (error) {
-        console.error(`Error processing contributor ${login}:`, error);
-        // Remove from loading state on error
-        setLoadingContributors((prev) => prev.filter((l) => l !== login));
-
-        // Show error toast
-        toast({
-          variant: 'destructive',
-          title: 'Ошибка',
-          description: `Не удалось сгенерировать отчет для ${login}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
-        });
       }
+    } catch (error) {
+      console.error(`Error processing contributors:`, error);
+      // Очищаем состояние загрузки при ошибке
+      setLoadingContributors([]);
+
+      // Показываем уведомление об ошибке
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: `Не удалось сгенерировать отчеты: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+      });
     }
   };
 

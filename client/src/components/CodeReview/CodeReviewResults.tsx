@@ -96,12 +96,10 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                         variant={getStatusVariant(review.status)}
                         className="font-medium"
                       >
-                        {review.status}
+                        -
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {review.rating.toFixed(1)}
-                    </TableCell>
+                    <TableCell className="text-right font-medium">-</TableCell>
                     <TableCell className="text-right">
                       {loadingContributors.includes(review.login) ? (
                         <Button variant="outline" size="sm" disabled>

@@ -1,5 +1,6 @@
 import uuid
 from typing import Dict, Optional
+import threading
 
 import schemas
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -10,7 +11,10 @@ from services.report_generator import generate_github_report
 from utils.file_utils import get_report_file_path
 
 # Dictionary to store the status of background tasks
+# Ключ - task_id, значение - информация о задаче
 report_tasks: Dict[str, Dict] = {}
+# Блокировка для безопасного доступа к словарю report_tasks
+report_tasks_lock = threading.Lock()
 
 
 # Email request model
@@ -77,19 +81,21 @@ async def get_github_repo_async(
             login.strip() for login in contributors.split(",") if login.strip()
         ]
 
-    # Store initial task info
-    report_tasks[task_id] = {
-        "status": "processing",
-        "owner": owner,
-        "repo": repo,
-        "email": email_data.email,
-        "contributors": contributor_logins,
-        "contributor_email": contributor_email_filter,
-        "date_filter": date_filter,
-        "pending_contributors": contributor_logins.copy() if contributor_logins else [],
-        "completed_contributors": [],
-        "results": {},
-    }
+    # Store initial task info with thread-safe access
+    with report_tasks_lock:
+        report_tasks[task_id] = {
+            "status": "processing",
+            "owner": owner,
+            "repo": repo,
+            "email": email_data.email,
+            "contributors": contributor_logins,
+            "date_filter": date_filter,
+            "pending_contributors": contributor_logins.copy()
+            if contributor_logins
+            else [],
+            "completed_contributors": [],
+            "results": {},
+        }
 
     # Process each contributor in the background
     if contributor_logins:
@@ -106,20 +112,6 @@ async def get_github_repo_async(
                 github_service,
                 report_tasks,
             )
-    else:
-        # Fallback to old behavior if no contributors specified
-        background_tasks.add_task(
-            generate_github_report,
-            task_id,
-            owner,
-            repo,
-            "",
-            contributor_email_filter,
-            date_filter,
-            email_data.email,
-            github_service,
-            report_tasks,
-        )
 
     return {"task_id": task_id, "status": "processing"}
 
@@ -136,10 +128,14 @@ async def get_github_repo_async(
 )
 async def get_task_status(task_id: str):
     """Get the status of a background task"""
-    if task_id not in report_tasks:
-        raise HTTPException(status_code=404, detail="Task not found")
+    # Безопасный доступ к словарю report_tasks
+    with report_tasks_lock:
+        if task_id not in report_tasks:
+            raise HTTPException(status_code=404, detail="Task not found")
 
-    task_info = report_tasks[task_id]
+        # Создаем копию информации о задаче, чтобы избежать проблем с параллельным доступом
+        task_info = dict(report_tasks[task_id])
+
     response = {
         "task_id": task_id,
         "status": task_info["status"],
@@ -160,16 +156,6 @@ async def get_task_status(task_id: str):
     # For multi-contributor reports, return all completed results
     if "results" in task_info and task_info["results"]:
         response["results"] = task_info["results"]
-        # Also return the first result in the standard location for backward compatibility
-        if task_info["results"] and len(task_info["results"]) > 0:
-            first_contributor = list(task_info["results"].keys())[0]
-            response["result"] = task_info["results"][first_contributor]
-            response["contributor_login"] = first_contributor
-    # For single contributor reports (legacy support)
-    elif task_info["status"] == "completed" and "result" in task_info:
-        response["result"] = task_info["result"]
-        if "contributor_login" in task_info:
-            response["contributor_login"] = task_info["contributor_login"]
 
     # Error handling
     if task_info["status"] == "failed" and "error" in task_info:

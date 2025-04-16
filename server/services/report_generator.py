@@ -17,6 +17,9 @@ async def generate_github_report(
     github_service,
     report_tasks: Dict[str, Dict],
 ):
+    # Импортируем блокировку для безопасного доступа к словарю report_tasks
+    from api.routes import report_tasks_lock
+
     """Background task to generate GitHub report for a specific contributor"""
     try:
         # Original get_github_repo code
@@ -24,42 +27,22 @@ async def generate_github_report(
         if date_filter != "":
             date_filter = f"+created:{date_filter}"
 
-        # Ensure contributor login is lowercase for case-insensitive comparisons
-        if contributor_login_filter != "":
-            contributor_login_filter = contributor_login_filter.lower()
-        if contributor_email_filter != "":
-            contributor_email_filter = contributor_email_filter.lower()
-
         # Update task status to indicate which contributor is being processed
-        if task_id in report_tasks:
-            if "processing_contributor" not in report_tasks[task_id]:
+        with report_tasks_lock:
+            if task_id in report_tasks:
+                print(contributor_login_filter)
                 report_tasks[task_id]["processing_contributor"] = (
                     contributor_login_filter
                 )
 
         contributor_details = await github_service.get_repo_contributors(owner, repo)
 
-        try:
-            if contributor_email_filter and not contributor_login_filter:
-                matching_logins = [
-                    str(contributor["login"]).lower()
-                    for contributor in contributor_details
-                    if str(contributor["email"]).lower() == contributor_email_filter
-                ]
-                if matching_logins:  # Check if list is not empty
-                    contributor_login_filter = matching_logins[0]
-                else:
-                    contributor_login_filter = ""
-        except Exception as e:
-            print(f"Error finding contributor by email: {str(e)}")
-            contributor_login_filter = ""
-
         # Получение информации о репозитории
         repo_info = await github_service.get_repo_info(owner, repo)
 
         # Построение запроса
         contributor_login = contributor_login_filter
-        contributor_details = {c["login"].lower(): c for c in contributor_details}
+        contributor_details = {c["login"]: c for c in contributor_details}
 
         # Get merged PRs by the contributor
         merged_prs = await github_service.get_merged_prs(
@@ -80,8 +63,9 @@ async def generate_github_report(
                 language=repo_info.get("language", ""),
                 topics=repo_info.get("topics", []),
             )
-            report_tasks[task_id]["result"] = result.dict()
-            report_tasks[task_id]["status"] = "completed"
+            with report_tasks_lock:
+                report_tasks[task_id]["result"] = result.dict()
+                report_tasks[task_id]["status"] = "completed"
 
             await send_email_report(
                 user_email,
@@ -129,7 +113,7 @@ async def generate_github_report(
         if "items" in merged_prs:
             for item in merged_prs["items"]:
                 if "user" in item and "login" in item["user"]:
-                    contributor_login = str(item["user"]["login"]).lower()
+                    contributor_login = str(item["user"]["login"])
                     contributor_info = contributor_details.get(contributor_login, {})
                     item["user"] = schemas.User(
                         **item["user"],
@@ -180,6 +164,12 @@ async def generate_github_report(
         if not topics and "source" in repo_info:
             topics = repo_info["source"].get("topics", [])
 
+        contributor_id = (
+            contributor_details.get(contributor_login_filter, {}).get("id")
+            if contributor_details.get(contributor_login_filter, {}).get("id")
+            else None
+        )
+
         contributor_name = (
             contributor_details.get(contributor_login_filter, {}).get("name")
             if contributor_details.get(contributor_login_filter, {}).get("name")
@@ -199,6 +189,7 @@ async def generate_github_report(
             **merged_prs,
             language=repo_info.get("language"),
             topics=topics,
+            contributor_id=contributor_id,
             contributor_name=contributor_name,
             contributor_email=contributor_email,
             contributor_login=contributor_login_filter,  # Add login to help identify this report
@@ -238,45 +229,46 @@ async def generate_github_report(
             print(f"Error generating report file: {str(e)}")
 
         # Store the result in the task's results dictionary
-        if task_id in report_tasks:
-            # Update task status for multiple contributors
-            if (
-                "pending_contributors" in report_tasks[task_id]
-                and contributor_login_filter
-                in report_tasks[task_id]["pending_contributors"]
-            ):
-                # Remove from pending list
-                report_tasks[task_id]["pending_contributors"].remove(
-                    contributor_login_filter
-                )
-                # Add to completed list
-                if "completed_contributors" in report_tasks[task_id]:
-                    report_tasks[task_id]["completed_contributors"].append(
+        with report_tasks_lock:
+            if task_id in report_tasks:
+                # Update task status for multiple contributors
+                if (
+                    "pending_contributors" in report_tasks[task_id]
+                    and contributor_login_filter
+                    in report_tasks[task_id]["pending_contributors"]
+                ):
+                    # Remove from pending list
+                    report_tasks[task_id]["pending_contributors"].remove(
                         contributor_login_filter
                     )
+                    # Add to completed list
+                    if "completed_contributors" in report_tasks[task_id]:
+                        report_tasks[task_id]["completed_contributors"].append(
+                            contributor_login_filter
+                        )
 
-                # Store this contributor's report in the results dictionary
-                if "results" in report_tasks[task_id]:
-                    report_tasks[task_id]["results"][contributor_login_filter] = (
-                        result.dict()
-                    )
+                    # Store this contributor's report in the results dictionary
+                    if "results" in report_tasks[task_id]:
+                        report_tasks[task_id]["results"][contributor_login_filter] = (
+                            result.dict()
+                        )
 
-                # Update overall status
-                if not report_tasks[task_id]["pending_contributors"]:
-                    # All contributors processed
-                    report_tasks[task_id]["status"] = "completed"
-                    print(f"All reports for task {task_id} generated successfully")
+                    # Update overall status
+                    if len(report_tasks[task_id]["pending_contributors"]) == 0:
+                        # All contributors processed
+                        report_tasks[task_id]["status"] = "completed"
+                        print(f"All reports for task {task_id} generated successfully")
+                    else:
+                        # More contributors to process
+                        report_tasks[task_id]["status"] = "partial"
+                        print(
+                            f"Report for {contributor_name} ({contributor_login_filter}) generated successfully. {len(report_tasks[task_id]['pending_contributors'])} contributors remaining."
+                        )
                 else:
-                    # More contributors to process
-                    report_tasks[task_id]["status"] = "partial"
-                    print(
-                        f"Report for {contributor_name} ({contributor_login_filter}) generated successfully. {len(report_tasks[task_id]['pending_contributors'])} contributors remaining."
-                    )
-            else:
-                # Single contributor workflow or fallback
-                report_tasks[task_id]["result"] = result.dict()
-                report_tasks[task_id]["status"] = "completed"
-                print("Report generated successfully")
+                    # Single contributor workflow or fallback
+                    report_tasks[task_id]["result"] = result.dict()
+                    report_tasks[task_id]["status"] = "completed"
+                    print("Report generated successfully")
 
         # Send email with report
         await send_email_report(
@@ -300,32 +292,33 @@ async def generate_github_report(
 
     except Exception as e:
         # Mark this specific contributor as failed
-        if (
-            task_id in report_tasks
-            and "pending_contributors" in report_tasks[task_id]
-            and contributor_login_filter
-            in report_tasks[task_id]["pending_contributors"]
-        ):
-            report_tasks[task_id]["pending_contributors"].remove(
-                contributor_login_filter
-            )
-            if "failed_contributors" not in report_tasks[task_id]:
-                report_tasks[task_id]["failed_contributors"] = []
-            report_tasks[task_id]["failed_contributors"].append(
-                contributor_login_filter
-            )
+        with report_tasks_lock:
+            if (
+                task_id in report_tasks
+                and "pending_contributors" in report_tasks[task_id]
+                and contributor_login_filter
+                in report_tasks[task_id]["pending_contributors"]
+            ):
+                report_tasks[task_id]["pending_contributors"].remove(
+                    contributor_login_filter
+                )
+                if "failed_contributors" not in report_tasks[task_id]:
+                    report_tasks[task_id]["failed_contributors"] = []
+                report_tasks[task_id]["failed_contributors"].append(
+                    contributor_login_filter
+                )
 
-            # If all contributors have been processed (either succeeded or failed)
-            if not report_tasks[task_id]["pending_contributors"]:
-                if not report_tasks[task_id].get("completed_contributors"):
-                    # All contributors failed
-                    report_tasks[task_id]["status"] = "failed"
-                else:
-                    # Some succeeded, some failed
-                    report_tasks[task_id]["status"] = "partial"
-        else:
-            # Fallback for single-contributor workflow or other errors
-            report_tasks[task_id]["status"] = "failed"
+                # If all contributors have been processed (either succeeded or failed)
+                if not report_tasks[task_id]["pending_contributors"]:
+                    if not report_tasks[task_id].get("completed_contributors"):
+                        # All contributors failed
+                        report_tasks[task_id]["status"] = "failed"
+                    else:
+                        # Some succeeded, some failed
+                        report_tasks[task_id]["status"] = "partial"
+            else:
+                # Fallback for single-contributor workflow or other errors
+                report_tasks[task_id]["status"] = "failed"
 
-        report_tasks[task_id]["error"] = str(e)
-        print(f"Error generating report for {contributor_login_filter}: {str(e)}")
+            report_tasks[task_id]["error"] = str(e)
+            print(f"Error generating report for {contributor_login_filter}: {str(e)}")

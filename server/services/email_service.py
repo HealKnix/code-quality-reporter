@@ -74,7 +74,9 @@ async def send_email_report(
                 server.sendmail(sender_email, email, message.as_string())
                 print(f"Email sent successfully to {email}")
 
-            report_tasks[task_id]["status"] = "completed"
+            if len(report_tasks[task_id]["pending_contributors"]) == 0:
+                report_tasks[task_id]["status"] = "completed"
+                report_tasks[task_id]["processing_contributor"] = ""
         except smtplib.SMTPAuthenticationError as auth_error:
             error_msg = str(auth_error)
             print(f"SMTP Authentication Error: {error_msg}")

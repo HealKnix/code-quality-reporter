@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
@@ -57,6 +57,8 @@ class GitHubRepo(BaseModel):
     incomplete_results: bool
     language: str
     topics: List[str]
+    contributor_id: int | None
     contributor_name: str | None
     contributor_email: str | None
     items: List[Item]
+    report_filename: Optional[str] = ""
