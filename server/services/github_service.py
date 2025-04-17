@@ -93,7 +93,10 @@ class GitHubService:
                 commit
                 for commit in commits
                 if (
-                    (str(commit["author"]["login"]).lower() == contributor_login)
+                    (
+                        str(commit["author"]["login"]).lower()
+                        == contributor_login.lower()
+                    )
                     if contributor_login
                     else True
                 )

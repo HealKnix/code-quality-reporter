@@ -5,6 +5,7 @@ import {
   UseQueryOptions,
 } from '@tanstack/react-query';
 import {
+  checkReportStatus,
   getContributors,
   getRepository,
   parseRepositoryUrl,
@@ -99,6 +100,64 @@ interface CodeReviewParams {
   contributors: string[];
   startDate: string;
   endDate: string;
+  email?: string;
+}
+
+export interface TaskStatusResultCommit {
+  sha: string;
+  author: {
+    date: Date;
+    email: string;
+    name: string;
+  };
+  files: {
+    additions: number;
+    changes: number;
+    deletions: number;
+    filename: string;
+    patch: string;
+    raw: string;
+    status: string;
+  }[];
+}
+
+export interface TaskStatusResultMerge {
+  body: string;
+  commits: string[];
+  id: number;
+  number: number;
+  pull_request: {
+    merged_at: Date;
+    url: string;
+  };
+  title: string;
+  user: Contributor;
+}
+
+export interface TaskStatusResult {
+  contributor_email: string;
+  contributor_id: number;
+  contributor_name: string;
+  incomplete_results: boolean;
+  items: TaskStatusResultMerge[];
+  language: string;
+  report_filename: string;
+  topics: string[];
+  total_count: number;
+}
+
+// Define task status response type
+export interface TaskStatusResponse {
+  status: string;
+  result?: any;
+  error?: string;
+  // New fields for multi-contributor support
+  results?: Record<string, TaskStatusResult>;
+  pending_contributors?: string[];
+  processing_contributor?: string;
+  completed_contributors?: string[];
+  failed_contributors?: string[];
+  contributor_login?: string;
 }
 
 /**
@@ -106,19 +165,45 @@ interface CodeReviewParams {
  */
 export const useCodeReviews = (
   options?: Omit<
-    UseMutationOptions<CodeReview[], Error, CodeReviewParams>,
+    UseMutationOptions<
+      CodeReview[] | TaskStatusResponse,
+      Error,
+      CodeReviewParams
+    >,
     'mutationFn'
   >,
 ) => {
-  return useMutation<CodeReview[], Error, CodeReviewParams>({
+  return useMutation<
+    CodeReview[] | TaskStatusResponse,
+    Error,
+    CodeReviewParams
+  >({
     mutationFn: ({
       owner,
       repo,
       contributors,
       startDate,
       endDate,
+      email,
     }: CodeReviewParams) =>
-      performCodeReviews(owner, repo, contributors, startDate, endDate),
+      performCodeReviews(owner, repo, contributors, startDate, endDate, email),
     ...options,
+  });
+};
+
+/**
+ * Hook for checking report task status
+ */
+export const useTaskStatus = (taskId: string, enabled: boolean = false) => {
+  return useQuery<
+    TaskStatusResponse,
+    Error,
+    TaskStatusResponse,
+    [string, string]
+  >({
+    queryKey: ['taskStatus', taskId],
+    queryFn: () => checkReportStatus(taskId),
+    enabled: enabled && !!taskId,
+    refetchInterval: enabled && !!taskId ? 3000 : false, // Poll every 3 seconds if enabled
   });
 };

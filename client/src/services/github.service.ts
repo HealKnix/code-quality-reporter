@@ -74,7 +74,7 @@ export const getContributors = async (
   endDate?: string,
 ): Promise<Contributor[]> => {
   const { data } = await githubClient.get<Contributor[]>(
-    `https://api.github.com/repos/${owner}/${repo}/contributors`,
+    `/api/github/repo/${owner}/${repo}/contributors`,
   );
 
   // Получаем количество мерджей для всех пользователей
@@ -218,6 +218,7 @@ export const analyzeCodeQuality = async (
 
   return {
     id: contributor.id,
+    login: contributor.login, // Add the login property that is required by the CodeReview interface
     avatar: contributor.avatar_url,
     name: contributor.name,
     email: contributor.email,
@@ -240,6 +241,7 @@ export const analyzeCodeQuality = async (
  * @param contributors List of contributor emails
  * @param startDate Start date in ISO format
  * @param endDate End date in ISO format
+ * @param email Optional email for sending the report (async mode)
  */
 export const performCodeReviews = async (
   owner: string,
@@ -247,20 +249,30 @@ export const performCodeReviews = async (
   contributors: string[],
   startDate: string,
   endDate: string,
-): Promise<CodeReview[]> => {
-  const reviews = await Promise.all(
-    contributors.map((login) =>
-      analyzeCodeQuality(owner, repo, login, startDate, endDate),
-    ),
+  email?: string,
+): Promise<CodeReview[] | { task_id: string; status: string }> => {
+  // Join all contributors into a comma-separated list for the API
+  const contributorsList = contributors.join(',');
+
+  // Call the async endpoint with all selected contributors
+  const { data } = await githubClient.post(
+    `/api/github/repo/merged/${owner}/${repo}/async?contributors=${contributorsList}${startDate ? `&date_filter=${startDate}..${endDate}` : ''}`,
+    { email: email ?? null },
   );
 
-  return reviews;
+  return data;
 };
 
 /**
- * Parses a repository URL to extract owner and repo name
- * @param repoUrl Repository URL
+ * Checks the status of an asynchronous report generation task
+ * @param taskId The task ID to check
  */
+export const checkReportStatus = async (taskId: string) => {
+  const { data } = await githubClient.get(`/api/task/${taskId}`);
+
+  return data;
+};
+
 export const parseRepositoryUrl = (
   repoUrl: string,
 ): { owner: string; repo: string } | null => {
