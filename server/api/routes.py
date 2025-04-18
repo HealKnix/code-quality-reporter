@@ -203,7 +203,7 @@ async def get_github_repo_contributors(
 
 @router.get(
     "/github/repo/merged/{owner}/{repo}",
-    response_model=schemas.GitHubRepo,
+    # response_model=schemas.GitHubRepo,
     summary="Получить информацию о слитых PR в репозитории",
     description="Возвращает информацию о слитых PR от указанного контрибьютора в заданном диапазоне дат",
     tags=["GitHub"],
@@ -338,6 +338,12 @@ async def get_github_repo(
         if not topics and "source" in repo_info:
             topics = repo_info["source"].get("topics", [])
 
+        contributor_id = (
+            contributor_details.get(contributor_login_filter, {}).get("id")
+            if contributor_details.get(contributor_login_filter, {}).get("id")
+            else None
+        )
+
         contributor_name = (
             contributor_details.get(contributor_login_filter, {}).get("name")
             if contributor_details.get(contributor_login_filter, {}).get("name")
@@ -357,6 +363,7 @@ async def get_github_repo(
             **merged_prs,
             language=repo_info.get("language"),
             topics=topics,
+            contributor_id=contributor_id,
             contributor_name=contributor_name,
             contributor_email=contributor_email,
         )
