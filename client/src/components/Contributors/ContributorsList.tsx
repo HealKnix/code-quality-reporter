@@ -92,7 +92,7 @@ const ContributorsTable = React.memo(
                     </Avatar>
                   </TableCell>
                   <TableCell>{contributor.name}</TableCell>
-                  <TableCell className="text-primary">
+                  <TableCell>
                     {contributor.email}
                   </TableCell>
                   <TableCell className="text-right">

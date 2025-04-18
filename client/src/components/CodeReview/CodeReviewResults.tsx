@@ -89,7 +89,7 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                       </Avatar>
                     </TableCell>
                     <TableCell>{review.name}</TableCell>
-                    <TableCell className="text-primary">
+                    <TableCell>
                       {review.email}
                     </TableCell>
                     <TableCell className="text-center">
