@@ -68,7 +68,7 @@ async def generate_github_report(
                 report_tasks[task_id]["result"] = result.dict()
                 report_tasks[task_id]["status"] = "completed"
 
-            if user_email:
+            if user_email != "":
                 await send_email_report(
                     user_email,
                     {
@@ -125,6 +125,11 @@ async def generate_github_report(
                         email=contributor_info.get("email"),
                     )
 
+        # Не убирать!
+        # raw_files = await github_service.get_row_files(
+        #     merged_prs, pr_commits, commit_details
+        # )
+
         # Обогащаем данные о коммитах
         for pr_index, item in enumerate(merged_prs["items"]):
             pr_number = item["number"]
@@ -138,17 +143,27 @@ async def generate_github_report(
                 # Обработка файлов в коммите
                 file_list = []
                 for file_index, file in enumerate(commit_detail.get("files", [])):
-                    file_list.append(
-                        schemas.File(
-                            filename=file["filename"],
-                            additions=file["additions"],
-                            deletions=file["deletions"],
-                            changes=file["changes"],
-                            status=file["status"],
-                            patch=file.get("patch", ""),
-                            raw=file["raw_url"],
+                    files_extension = ""
+
+                    if repo_info.get("language") == "Python":
+                        files_extension = ".py"
+                    elif repo_info.get("language") == "Java":
+                        files_extension = ".java"
+
+                    if files_extension in file.get("filename", ""):
+                        file_list.append(
+                            schemas.File(
+                                filename=file["filename"],
+                                additions=file["additions"],
+                                deletions=file["deletions"],
+                                changes=file["changes"],
+                                status=file["status"],
+                                patch=file.get("patch", ""),
+                                # Не убирать!
+                                # raw=raw_files[pr_index][commit_index][file_index],
+                                raw=file["raw_url"],
+                            )
                         )
-                    )
 
                 # Создание объекта коммита
                 commits.append(
@@ -207,6 +222,7 @@ async def generate_github_report(
             file_path, filename = await create_report_file(
                 owner,
                 repo,
+                result,
                 contributor_login_filter,
                 start_date=date_filter_cleaned.split("..")[0]
                 if ".." in date_filter_cleaned
@@ -274,7 +290,7 @@ async def generate_github_report(
                     report_tasks[task_id]["status"] = "completed"
                     print("Report generated successfully")
 
-        if user_email:
+        if user_email != "":
             # Send email with report
             await send_email_report(
                 user_email,
