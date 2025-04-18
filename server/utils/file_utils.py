@@ -1,6 +1,10 @@
 from datetime import datetime
 from pathlib import Path
 
+from code_analyzer import CodeAnalysisCrew
+
+import schemas
+
 # Create reports directory if it doesn't exist
 REPORTS_DIR = Path("reports")
 REPORTS_DIR.mkdir(exist_ok=True)
@@ -30,6 +34,7 @@ def sanitize_date_for_filename(date_str):
 async def create_report_file(
     owner: str,
     repo: str,
+    result: schemas.GitHubRepo,
     contributor_login: str,
     start_date: str = None,
     end_date: str = None,
@@ -53,16 +58,36 @@ async def create_report_file(
 
     # Create a timestamped filename to avoid overwriting
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{contributor_login}{date_part}_{timestamp}.pdf"
+    filename = f"{contributor_login}{date_part}_{timestamp}.md"
     file_path = repo_dir / filename
+
+    diff_input = ""
+
+    merges = result.items
+
+    for merge in merges:
+        commits = merge.commits
+        for commit in commits:
+            files = commit.files
+            for file in files:
+                commit_filename_split = str(file.filename).split("/")
+                commit_filename = commit_filename_split[-1]
+                commit_patch = file.patch
+
+                diff_input += f"### {commit_filename}\n\n# user code in {commit_filename}\n{commit_patch}\n\n"
+
+    analyzer = CodeAnalysisCrew(
+        diff_input=diff_input, path=repo_dir, file_name=filename
+    )
+    analyzer.analyze()
 
     # Generate a simple PDF report (in a real app, you'd use a PDF library)
     # For now, we'll create a dummy PDF file
-    with open(file_path, "w") as f:
-        f.write(f"Report for {contributor_login} in {owner}/{repo}\n")
-        f.write(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        if start_date or end_date:
-            f.write(f"Date range: {start_date or 'beginning'} to {end_date or 'now'}\n")
+    # with open(file_path, "w") as f:
+    #     f.write(f"Report for {contributor_login} in {owner}/{repo}\n")
+    #     f.write(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    #     if start_date or end_date:
+    #         f.write(f"Date range: {start_date or 'beginning'} to {end_date or 'now'}\n")
 
     # Return the file path
     return file_path, filename

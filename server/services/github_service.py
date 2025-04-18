@@ -32,7 +32,9 @@ class GitHubService:
                 if url == "":
                     return ""
                 async with session.get(url, headers=self.headers) as response:
-                    if response.status == 200:
+                    if response.status == 404:
+                        return ""
+                    elif response.status == 200:
                         return await response.text() if text else await response.json()
                     else:
                         error_detail = await response.text()
@@ -86,6 +88,7 @@ class GitHubService:
             f"{self.GITHUB_API_URL}/repos/{owner}/{repo}/pulls/{pr_number}/commits"
             for pr_number in pr_numbers
         ]
+
         results = await self.get_async(urls)
 
         return {
@@ -119,17 +122,17 @@ class GitHubService:
             ]
         )
 
-        contributors_email = {
-            commits[-1]["author"]["login"]: commits[-1]["commit"]["author"]["email"]
-            for commits in (
-                await self.get_async(
-                    [
-                        f"https://api.github.com/repos/{owner}/{repo}/commits?author={contributor['login']}"
-                        for contributor in contributors
-                    ]
-                )
+        contributors_email = {}
+        for contributor in contributors:
+            commits = await self.get_async(
+                [
+                    f"https://api.github.com/repos/{owner}/{repo}/commits?author={contributor['login']}"
+                ]
             )
-        }
+            if commits and commits[0]:
+                contributors_email[commits[0][-1]["author"]["login"]] = commits[0][-1][
+                    "commit"
+                ]["author"]["email"]
 
         contributors = [
             {
