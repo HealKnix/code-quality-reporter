@@ -223,6 +223,7 @@ async def generate_github_report(
                 owner,
                 repo,
                 result,
+                contributor_details,
                 contributor_login_filter,
                 start_date=date_filter_cleaned.split("..")[0]
                 if ".." in date_filter_cleaned

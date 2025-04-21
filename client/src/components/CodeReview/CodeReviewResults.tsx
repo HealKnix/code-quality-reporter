@@ -71,8 +71,6 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                 <TableHead>Имя</TableHead>
                 <TableHead>Почта</TableHead>
                 <TableHead className="text-center">Мерджей за период</TableHead>
-                <TableHead className="text-center">Статус</TableHead>
-                <TableHead className="text-right">Рейтинг</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -89,21 +87,10 @@ const CodeReviewResults = forwardRef<HTMLDivElement, CodeReviewResultsProps>(
                       </Avatar>
                     </TableCell>
                     <TableCell>{review.name}</TableCell>
-                    <TableCell>
-                      {review.email}
-                    </TableCell>
+                    <TableCell>{review.email}</TableCell>
                     <TableCell className="text-center">
                       {review.mergeCount}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={getStatusVariant(review.status)}
-                        className="font-medium"
-                      >
-                        -
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">-</TableCell>
                     <TableCell className="text-right">
                       {loadingContributors.includes(review.login) ? (
                         <Button variant="outline" size="sm" disabled>

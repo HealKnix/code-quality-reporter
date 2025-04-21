@@ -35,6 +35,7 @@ async def create_report_file(
     owner: str,
     repo: str,
     result: schemas.GitHubRepo,
+    contributor_details: dict,
     contributor_login: str,
     start_date: str = None,
     end_date: str = None,
@@ -77,7 +78,10 @@ async def create_report_file(
                 diff_input += f"### {commit_filename}\n\n# user code in {commit_filename}\n{commit_patch}\n\n"
 
     analyzer = CodeAnalysisCrew(
-        diff_input=diff_input, path=repo_dir, file_name=filename
+        diff_input=diff_input,
+        path=repo_dir,
+        file_name=filename,
+        contributor=contributor_details[contributor_login],
     )
     analyzer.analyze()
 

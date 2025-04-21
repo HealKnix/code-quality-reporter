@@ -1,19 +1,17 @@
 import os
 import subprocess
 import json
-from datetime import datetime
 import concurrent.futures
 from pathlib import Path
 from typing import Dict, List
 import logging
 import tempfile
+import ast
 from openai import OpenAI
 from dotenv import load_dotenv
 from code_parser import ParserService
 
 load_dotenv()
-
-# Импорт ParserService из code_parser.py
 
 # Настройка логирования
 logging.basicConfig(
@@ -21,7 +19,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Проверка и инициализация OpenAI API ключа
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("OPENAI_API_KEY not found in environment variables")
+client = OpenAI(api_key=api_key)
 
 # Конфигурация инструментов для Python
 LANGUAGE_TOOLS = {
@@ -43,21 +45,28 @@ LANGUAGE_TOOLS = {
                 "--show-error-codes",
                 "--no-color-output",
             ],
-            "ignore": ["import-untyped", "no-redef"],
+            "ignore": ["import-untyped"],
+        },
+        "complexity": {
+            "cmd": ["radon", "cc", "{file}", "-j"],
+            "ignore": [],
+            "threshold": 10,
         },
     },
+    "java": {},
+    "php": {},
 }
 
 # Конфигурация GPT-промптов
 GPT_CONFIG = {
     "code_analysis": """
-Вы — эксперт по {language}. Проанализируйте код, представляющий изменения пользователя в GitHub merge, и выявите ошибки в категориях: безопасность, линтинг, типизация, сложность. Игнорируйте незначительные ошибки (документация, стиль, например, {doc_ignore}, {style_ignore}). Верните не более 5 ошибок.
+Вы — эксперт по {language}. Проанализируйте код, представляющий изменения пользователя в GitHub merge, и выявите ошибки в категориях: безопасность, линтинг, типизация, сложность. Верните не более 5 ошибок.
 
 1. **Анализ кода**:
    - Безопасность: Проверьте уязвимости (инъекции, небезопасные функции).
-   - Линтинг: Найдите логические ошибки, влияющие на функциональность.
+   - Линтинг: Найдите логические и синтаксические ошибки, влияющие на функциональность.
    - Типизация: Проверьте несоответствия типов.
-   - Сложность: Оцените читаемость и поддерживаемость.
+   - Сложность: Оцените читаемость и поддерживаемость, включая высокую цикломатическую сложность.
 2. **Формат ответа**:
 ```
 Issues:
@@ -73,7 +82,7 @@ Issues:
 {code}
 """,
     "prioritize_issues": """
-Вы — старший разработчик для {language}. Проанализируйте код и список ошибок, выберите **3 самые важные ошибки**, влияющие на безопасность, функциональность или читаемость. Игнорируйте незначительные ошибки (документация, стиль: {doc_ignore}, {style_ignore}).
+Вы — старший разработчик для {language}. Проанализируйте код и список ошибок, выберите **до 3 самых важных ошибок**, влияющих на безопасность, функциональность, типизацию или сложность. **Обязательно включите ВСЕ синтаксические ошибки (тип 'lint' с 'SyntaxError'), ошибки типизации (MyPy) и сложности (Radon), если они присутствуют**, так как они критичны для выполнения и качества кода. Если ошибок меньше 3, включите все доступные.
 
 1. **Формат ответа**:
 ```
@@ -155,18 +164,21 @@ LANGUAGE_EXAMPLES = {
 
 
 class CodeAnalysisCrew:
-    def __init__(self, diff_input: str, path: str, file_name: str):
+    def __init__(self, diff_input: str, path: str, file_name: str, contributor: dict):
         """Инициализация анализатора кода на основе GitHub diff.
 
         Args:
             diff_input (str): Строка с изменениями в формате GitHub diff.
+            path (str): Путь для сохранения отчета.
+            file_name (str): Имя файла отчета.
         """
-        self.path = path
+        self.contributor = contributor
+        self.path = Path(path)
         self.file_name = file_name
         self.diff_input = diff_input
-        self.file_diffs = []  # Список FileDiff из ParserService
+        self.file_diffs = []
         self.language = None
-        self.temp_files = []  # Для очистки временных файлов
+        self.temp_files = []
         self.report_data = {
             "key_issues": [],
             "patterns": [],
@@ -196,10 +208,10 @@ class CodeAnalysisCrew:
     def _parse_diff(self):
         """Парсинг GitHub diff с использованием ParserService."""
         logger.info("Парсинг diff...")
+        logger.info(f"Содержимое diff:\n{self.diff_input}")
         parser = ParserService()
         self.file_diffs = parser.parse(self.diff_input)
 
-        # Подсчет статистики вклада
         self.report_data["user_contribution"]["files_changed"] = len(self.file_diffs)
         for diff in self.file_diffs:
             new_lines = diff.new.splitlines()
@@ -210,9 +222,20 @@ class CodeAnalysisCrew:
     def _detect_language(self):
         """Определение языка по расширениям файлов в diff."""
         extensions = {Path(diff.filename).suffix.lower() for diff in self.file_diffs}
-        if len(extensions) > 1:
-            raise ValueError("Diff содержит файлы с разными языками")
-        ext = extensions.pop() if extensions else ".py"
+
+        print(extensions)
+
+        # if len(extensions) > 1:
+        #     raise ValueError("Diff содержит файлы с разными языками")
+        # ext = extensions.pop() if extensions else ".py"
+
+        # ext = ".py"
+
+        for extension in extensions:
+            if extension in [".py", ".java", ".php"]:
+                ext = extension
+                break
+
         if ext == ".py":
             self.language = "python"
         elif ext == ".java":
@@ -250,6 +273,7 @@ class CodeAnalysisCrew:
         temp_file.write(code)
         temp_file.close()
         self.temp_files.append(temp_file.name)
+        logger.info(f"Создан временный файл: {temp_file.name} с содержимым:\n{code}")
         return temp_file.name
 
     def _extract_code_fragment(self, code: str, lineno: int, context: int = 3) -> str:
@@ -258,6 +282,30 @@ class CodeAnalysisCrew:
         start = max(0, lineno - context)
         end = min(len(lines), lineno + context + 1)
         return "\n".join(lines[start:end])
+
+    def _check_syntax(self, code: str, filename: str) -> bool:
+        """Проверка синтаксической корректности Python-кода."""
+        logger.info(f"Проверка синтаксиса для {filename}:\n{code}")
+        try:
+            ast.parse(code)
+            logger.info(f"Синтаксическая проверка {filename}: код валиден")
+            return True
+        except SyntaxError as e:
+            logger.error(f"Синтаксическая ошибка в {filename}: {e}")
+            code_fragment = self._extract_code_fragment(code, e.lineno)
+            issue = {
+                "type": "lint",
+                "code": code_fragment,
+                "message": f"SyntaxError: {str(e)}",
+                "location": f"{filename}:{e.lineno}",
+                "recommendation": "Проверить и исправить отступы или синтаксис в указанной строке",
+                "severity": "critical",
+            }
+            logger.info(
+                f"Добавлена синтаксическая ошибка: {issue['message']} в {issue['location']}"
+            )
+            self.tool_issues.append(issue)
+            return False
 
     def _run_gpt_analysis(self, code: str, filename: str):
         """Анализ кода через GPT для Java и PHP."""
@@ -295,11 +343,7 @@ class CodeAnalysisCrew:
                     current_issue["location"] = (
                         f"{filename}:{current_issue['location'].split(':')[1]}"
                     )
-                    if not any(
-                        x in current_issue["message"].lower()
-                        for x in ["javadoc", "phpdoc", "name"]
-                    ):
-                        issues.append(current_issue)
+                    issues.append(current_issue)
                     current_issue = {}
             self.tool_issues.extend(issues[:5])
             logger.info("GPT-анализ завершен")
@@ -336,8 +380,15 @@ class CodeAnalysisCrew:
                     if msg["type"] == "error"
                     else "non-critical",
                 }
+                logger.info(
+                    f"Найдена ошибка Pylint: {issue['message']} в {issue['location']}"
+                )
                 self.tool_issues.append(issue)
             logger.info("Pylint завершен")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout running Pylint for {filename}")
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON output from Pylint for {filename}")
         except Exception as e:
             logger.error(f"Ошибка Pylint: {e}")
 
@@ -370,13 +421,20 @@ class CodeAnalysisCrew:
                         if issue["issue_severity"] == "HIGH"
                         else "non-critical",
                     }
+                    logger.info(
+                        f"Найдена ошибка Bandit: {issue_data['message']} в {issue_data['location']}"
+                    )
                     self.tool_issues.append(issue_data)
             logger.info("Bandit завершен")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout running Bandit for {filename}")
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON output from Bandit for {filename}")
         except Exception as e:
             logger.error(f"Ошибка Bandit: {e}")
 
     def _run_python_type_checker(self, temp_file: str, filename: str):
-        """MyPy для Python."""
+        """MyPy для Python с логированием всех ошибок."""
         logger.info(f"Запуск MyPy для {filename}...")
         tool = LANGUAGE_TOOLS["python"]["type_checker"]
         cmd = [
@@ -384,10 +442,9 @@ class CodeAnalysisCrew:
             for arg in tool["cmd"]
         ]
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30
-            ).stdout
-            for line in result.splitlines():
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            logger.info(f"MyPy output:\n{result.stdout}")
+            for line in result.stdout.splitlines():
                 if ":" in line and "error:" in line:
                     parts = line.split(":", maxsplit=3)
                     if len(parts) < 4:
@@ -402,6 +459,7 @@ class CodeAnalysisCrew:
                         )
                         continue
                     if any(pattern in msg for pattern in tool["ignore"]):
+                        logger.info(f"Игнорируется ошибка MyPy: {msg.strip()}")
                         continue
                     line_num_int = int(line_num)
                     code_fragment = self._extract_code_fragment(
@@ -412,39 +470,146 @@ class CodeAnalysisCrew:
                         "code": code_fragment,
                         "message": f"MyPy: {msg.strip()}",
                         "location": f"{filename}:{line_num}",
-                        "recommendation": f"Исправить ошибку типов",
-                        "severity": "non-critical"
-                        if "missing" in msg.lower()
-                        else "critical",
+                        "recommendation": "Исправить ошибку типов согласно сообщению MyPy",
+                        "severity": "critical"
+                        if "error" in msg.lower()
+                        else "non-critical",
                     }
+                    logger.info(
+                        f"Найдена ошибка MyPy: {issue['message']} в {issue['location']}"
+                    )
                     self.tool_issues.append(issue)
             logger.info("MyPy завершен")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout running MyPy for {filename}")
         except Exception as e:
             logger.error(f"Ошибка MyPy: {e}")
+            issue = {
+                "type": "type_error",
+                "code": Path(temp_file).read_text(),
+                "message": f"MyPy: Failed to analyze due to {str(e)}",
+                "location": f"{filename}:0",
+                "recommendation": "Проверить синтаксис и зависимости MyPy",
+                "severity": "critical",
+            }
+            self.tool_issues.append(issue)
+
+    def _run_python_complexity(self, temp_file: str, filename: str):
+        """Radon для анализа сложности кода с логированием."""
+        logger.info(f"Запуск Radon для {filename}...")
+        tool = LANGUAGE_TOOLS["python"]["complexity"]
+        cmd = [
+            arg.format(file=temp_file, dir=os.path.dirname(temp_file))
+            for arg in tool["cmd"]
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            logger.info(f"Radon output:\n{result.stdout}")
+            data = json.loads(result.stdout)
+            if not isinstance(data, dict):
+                logger.error(f"Неверный формат вывода Radon: {data}")
+                return
+            for file_path, blocks in data.items():
+                if isinstance(blocks, dict) and "error" in blocks:
+                    # Обработка синтаксической ошибки от Radon
+                    error_msg = blocks["error"]
+                    line_num = 0
+                    if "line" in error_msg:
+                        try:
+                            line_num = int(error_msg.split("line ")[1].split(")")[0])
+                        except (IndexError, ValueError):
+                            line_num = 0
+                    code_fragment = self._extract_code_fragment(
+                        Path(temp_file).read_text(), line_num
+                    )
+                    issue = {
+                        "type": "complexity",
+                        "code": code_fragment,
+                        "message": f"Radon: {error_msg}",
+                        "location": f"{filename}:{line_num}",
+                        "recommendation": "Исправить синтаксическую ошибку для анализа сложности",
+                        "severity": "critical",
+                    }
+                    logger.info(
+                        f"Найдена ошибка Radon: {issue['message']} в {issue['location']}"
+                    )
+                    self.tool_issues.append(issue)
+                    continue
+                if not isinstance(blocks, list):
+                    logger.error(
+                        f"Неверный формат блоков Radon для {file_path}: {blocks}"
+                    )
+                    continue
+                for block in blocks:
+                    if not isinstance(block, dict) or "complexity" not in block:
+                        logger.error(f"Неверный формат блока Radon: {block}")
+                        continue
+                    if block["complexity"] >= tool["threshold"]:
+                        line_num = block.get("lineno", 0)
+                        code_fragment = self._extract_code_fragment(
+                            Path(temp_file).read_text(), line_num
+                        )
+                        issue = {
+                            "type": "complexity",
+                            "code": code_fragment,
+                            "message": f"Radon: Высокая цикломатическая сложность ({block['complexity']}) в {block['type']} {block['name']}",
+                            "location": f"{filename}:{line_num}",
+                            "recommendation": "Упростить функцию или метод, разбив на более мелкие части",
+                            "severity": "critical"
+                            if block["complexity"] > 15
+                            else "non-critical",
+                        }
+                        logger.info(
+                            f"Найдена ошибка Radon: {issue['message']} в {issue['location']}"
+                        )
+                        self.tool_issues.append(issue)
+            logger.info("Radon завершен")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout running Radon for {filename}")
+        except json.JSONDecodeError:
+            logger.error(
+                f"Invalid JSON output from Radon for {filename}: {result.stdout}"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка Radon: {e}")
+            issue = {
+                "type": "complexity",
+                "code": Path(temp_file).read_text(),
+                "message": f"Radon: Failed to analyze due to {str(e)}",
+                "location": f"{filename}:0",
+                "recommendation": "Проверить синтаксис и зависимости Radon",
+                "severity": "critical",
+            }
+            self.tool_issues.append(issue)
 
     def _prioritize_issues_with_gpt(self, code: str) -> List[Dict]:
-        """Ранжирование ошибок через GPT."""
+        """Ранжирование ошибок через GPT с логированием всех ошибок."""
+        logger.info("Все собранные ошибки для GPT-приоритизации:")
+        for i, issue in enumerate(self.tool_issues):
+            logger.info(
+                f"{i + 1}. {issue['type'].capitalize()}: {issue['message']} в {issue['location']}"
+            )
+
         try:
             issues_str = "\n".join(
                 [
-                    f"{i + 1}. {issue['type'].capitalize()}: {issue['message']} в {issue['location']}"
-                    for i, issue in enumerate(self.tool_issues)
+                    f"- Тип: {issue['type']}\n  Сообщение: {issue['message']}\n  Место: {issue['location']}\n  Код: {issue['code']}\n  Серьезность: {issue['severity']}"
+                    for issue in self.tool_issues
                 ]
             )
             prompt = GPT_CONFIG["prioritize_issues"].format(
                 language=self.language,
                 code=code,
                 issues=issues_str,
-                doc_ignore=LANGUAGE_EXAMPLES[self.language]["doc_ignore"],
-                style_ignore=LANGUAGE_EXAMPLES[self.language]["style_ignore"],
             )
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                timeout=15,
+                timeout=30,
             )
             gpt_result = response.choices[0].message.content.strip()
+            logger.info(f"GPT response:\n{gpt_result}")
             prioritized_issues = []
             current_issue = {}
             for line in gpt_result.splitlines():
@@ -465,16 +630,40 @@ class CodeAnalysisCrew:
                     current_issue["justification"] = line.split(":", 1)[1].strip()
                     prioritized_issues.append(current_issue)
                     current_issue = {}
-            return [
+            selected_issues = [
                 {
                     "source": issue["type"].capitalize(),
                     "message": f"{issue['message']}\nПроблема: {issue['problem']}\nРекомендация: {issue['recommendation']}\nОбоснование: {issue['justification']}\nКод: {issue['code']}",
                 }
                 for issue in prioritized_issues[:3]
             ]
+            logger.info(f"Выбрано GPT: {len(selected_issues)} ключевых ошибок")
+            for i, issue in enumerate(selected_issues):
+                logger.info(
+                    f"Ключевая ошибка {i + 1}: [{issue['source']}] {issue['message']}"
+                )
+            self.report_data["key_issues"] = (
+                selected_issues  # Прямо присваиваем key_issues
+            )
+            return selected_issues
         except Exception as e:
             logger.error(f"Ошибка приоритизации GPT: {e}")
-            return []
+            # Возвращаем все критические ошибки как запасной вариант
+            selected_issues = [
+                {
+                    "source": issue["type"].capitalize(),
+                    "message": f"{issue['message']}\nПроблема: Критическая ошибка\nРекомендация: {issue['recommendation']}\nОбоснование: Ошибка влияет на выполнение кода\nКод: {issue['code']}",
+                }
+                for issue in self.tool_issues
+                if issue["severity"] == "critical"
+            ]
+            logger.info(
+                f"Запасной вариант: выбрано {len(selected_issues)} критических ошибок"
+            )
+            self.report_data["key_issues"] = (
+                selected_issues  # Прямо присваиваем key_issues
+            )
+            return selected_issues
 
     def _get_gpt_quality_score(
         self, code: str, num_issues: int, severity_summary: str
@@ -578,6 +767,37 @@ class CodeAnalysisCrew:
         if text and text not in self.report_data["recommendations"]:
             self.report_data["recommendations"].append(text)
 
+    def _generate_recommendations(self):
+        """Генерация рекомендаций на основе key_issues и других данных."""
+        recommendations = []
+
+        # Рекомендации из key_issues
+        for issue in self.report_data["key_issues"]:
+            if "Рекомендация:" in issue["message"]:
+                rec = issue["message"].split("Рекомендация:")[1].split("\n")[0].strip()
+                recommendations.append(rec)
+
+        # Рекомендации из анти-паттернов
+        for ap in self.report_data["anti_patterns"]:
+            recommendations.append(
+                f"Устранить анти-паттерн '{ap['name']}': {ap['description']}"
+            )
+
+        # Рекомендации на основе метрик
+        for metric, score in self.report_data["metrics"].items():
+            if score < 7:
+                recommendations.append(
+                    f"Улучшить {metric.replace('_', ' ')}: текущий показатель {score}/10"
+                )
+
+        # Если рекомендаций нет, добавить общую
+        if not recommendations:
+            recommendations.append(
+                "Следовать лучшим практикам кодирования, таким как использование понятных имен и структурирование кода"
+            )
+
+        self.report_data["recommendations"] = list(set(recommendations))[:5]
+
     def _calculate_score(self):
         """Расчет итогового скора."""
         weights = {
@@ -597,61 +817,72 @@ class CodeAnalysisCrew:
         ]
 
     def _generate_report(self):
-        """Генерация отчета."""
-        logger.info("Генерация отчета...")
+        """Генерация отчета в формате Markdown."""
+        logger.info("Генерация отчета в формате Markdown...")
         self._calculate_score()
+        self._generate_recommendations()
         lines = []
-        lines.append(f"User Contribution Analysis Report ({datetime.now().date()})")
-        lines.append(f"\nContribution Summary:")
         lines.append(
-            f"Files Changed: {self.report_data['user_contribution']['files_changed']}"
+            f"# Отчет по {self.contributor['name']} ({self.contributor['email']})"
+        )
+        lines.append(f"## Contribution Summary")
+        lines.append(
+            f"- **Files Changed**: {self.report_data['user_contribution']['files_changed']}"
         )
         lines.append(
-            f"Lines Added: {self.report_data['user_contribution']['lines_added']}"
+            f"- **Lines Added**: {self.report_data['user_contribution']['lines_added']}"
         )
         lines.append(
-            f"Lines Removed: {self.report_data['user_contribution']['lines_removed']}"
+            f"- **Lines Removed**: {self.report_data['user_contribution']['lines_removed']}"
         )
 
-        lines.append("\nKey Issues in User Changes:")
-        for i, issue in enumerate(self.report_data["key_issues"]):
-            lines.append(f"{i + 1}. [{issue['source']}] {issue['message']}")
-
+        lines.append("## Key Issues in User Changes")
         if not self.report_data["key_issues"]:
-            lines.append("None: Проблемы не обнаружены")
+            lines.append("*None: Проблемы не обнаружены*")
+        else:
+            for i, issue in enumerate(self.report_data["key_issues"]):
+                lines.append(f"{i + 1}. **[{issue['source']}]** {issue['message']}")
 
-        lines.append("\nDetected Patterns in User Changes:")
-        for i, p in enumerate(self.report_data["patterns"]):
-            lines.append(f"{i + 1}. {p['name']}: {p['description']}")
+        lines.append("## Detected Patterns in User Changes")
+        if not self.report_data["patterns"]:
+            lines.append("*None: Шаблоны не обнаружены*")
+        else:
+            for i, p in enumerate(self.report_data["patterns"]):
+                lines.append(f"{i + 1}. **{p['name']}**: {p['description']}")
 
-        lines.append("\nDetected Anti-patterns in User Changes:")
+        lines.append("## Detected Anti-patterns in User Changes")
         if not self.report_data["anti_patterns"]:
-            lines.append("None: Анти-паттерны не обнаружены")
+            lines.append("*None: Анти-паттерны не обнаружены*")
         else:
             for i, ap in enumerate(self.report_data["anti_patterns"]):
-                lines.append(f"{i + 1}. {ap['name']}: {ap['description']}")
+                lines.append(f"{i + 1}. **{ap['name']}**: {ap['description']}")
 
-        lines.append("\nPositive Practices in User Changes:")
-        for i, pp in enumerate(self.report_data["positive_practices"]):
-            lines.append(f"{i + 1}. {pp['name']}: {pp['description']}")
+        lines.append("## Positive Practices in User Changes")
         if not self.report_data["positive_practices"]:
             lines.append(
-                "1. Читаемость: Использование понятных имен и стиля кодирования"
+                "1. **Читаемость**: Использование понятных имен и стиля кодирования"
             )
+        else:
+            for i, pp in enumerate(self.report_data["positive_practices"]):
+                lines.append(f"{i + 1}. **{pp['name']}**: {pp['description']}")
 
-        lines.append("\nMetrics for User Contribution:")
+        lines.append("## Metrics for User Contribution")
+        lines.append("| Метрика | Оценка |")
+        lines.append("| ------- | ------ |")
         for k, v in self.report_data["metrics"].items():
-            lines.append(f"{k.replace('_', ' ').title()}: {v}/10")
+            lines.append(f"| {k.replace('_', ' ').title()} | {v}/10 |")
 
-        lines.append(f"\nOverall Contribution Score: {self.report_data['score']}/10")
+        lines.append(f"## Overall Contribution Score")
+        lines.append(f"**{self.report_data['score']}/10**")
 
-        lines.append("\nRecommendations for User Changes:")
-        for i, rec in enumerate(self.report_data["recommendations"]):
-            lines.append(f"{i + 1}. {rec}")
+        lines.append("## Recommendations for User Changes")
         if not self.report_data["recommendations"]:
-            lines.append("None: Рекомендации отсутствуют")
+            lines.append("*None: Рекомендации отсутствуют*")
+        else:
+            for i, rec in enumerate(self.report_data["recommendations"]):
+                lines.append(f"{i + 1}. {rec}")
 
-        report_text = "\n".join(lines)
+        report_text = "\n\n".join(lines)
         print(report_text)
         try:
             path = self.path / self.file_name
@@ -672,12 +903,13 @@ class CodeAnalysisCrew:
                 continue
 
             if self.language == "python":
-                # Создаем временный файл для анализа
                 temp_file = self._create_temp_file(code, suffix=".py")
+                self._check_syntax(code, diff.filename)  # Всегда проверяем синтаксис
                 tools = [
                     lambda: self._run_python_linter(temp_file, diff.filename),
                     lambda: self._run_python_security(temp_file, diff.filename),
                     lambda: self._run_python_type_checker(temp_file, diff.filename),
+                    lambda: self._run_python_complexity(temp_file, diff.filename),
                 ]
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     futures = [executor.submit(tool) for tool in tools]
@@ -687,7 +919,6 @@ class CodeAnalysisCrew:
                         except Exception as e:
                             logger.error(f"Ошибка инструмента: {e}")
             else:
-                # Для Java и PHP используем GPT
                 self._run_gpt_analysis(code, diff.filename)
 
     def analyze(self):
@@ -695,7 +926,6 @@ class CodeAnalysisCrew:
         logger.info("Начало анализа...")
         self.run_all_tools()
 
-        # Собираем весь пользовательский код для анализа шаблонов и метрик
         user_code = "\n".join(
             f"# {diff.filename}\n{diff.new}"
             for diff in self.file_diffs
@@ -706,12 +936,7 @@ class CodeAnalysisCrew:
             raise ValueError("Нет пользовательских изменений для анализа")
 
         self._pattern_analysis(user_code)
-        self.report_data["key_issues"] = self._prioritize_issues_with_gpt(user_code)
-        self.report_data["recommendations"] = [
-            issue["message"].split("\nРекомендация: ")[1].split("\n")[0]
-            for issue in self.report_data["key_issues"]
-            if "Рекомендация: " in issue["message"]
-        ]
+        self._prioritize_issues_with_gpt(user_code)  # key_issues заполняется внутри
         num_issues = len(self.report_data["key_issues"])
         severity_summary = f"{num_issues} key issues in user changes"
         self.report_data["metrics"].update(
@@ -719,7 +944,6 @@ class CodeAnalysisCrew:
         )
         self._generate_report()
 
-        # Очистка временных файлов
         for temp_file in self.temp_files:
             try:
                 os.unlink(temp_file)
